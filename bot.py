@@ -57,7 +57,7 @@ async def main():
     while True:
         scheduled_job()
         logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
-        await asyncio.sleep(FETCH_DELAY)  # Ждём 60 секунд перед следующим сбором
+        await asyncio.sleep(FETCH_DELAY)
 
 if __name__ == "__main__":
     try:
