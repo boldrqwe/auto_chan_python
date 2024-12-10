@@ -1,12 +1,10 @@
-# tasks.py
 import logging
+import asyncio  # Для использования asyncio.sleep
 
-from harkach_markup_converter import HarkachMarkupConverter
 from thread_service import batch_threads
 
 logger = logging.getLogger(__name__)
 
-converter = HarkachMarkupConverter()
 
 async def job_collect_media(dvach, posted_media, media_queue, batch_size=5, delay=10):
     """Сбор медиа с 2ch пакетами по batch_size тредов с паузой delay между пакетами."""
@@ -23,8 +21,21 @@ async def job_collect_media(dvach, posted_media, media_queue, batch_size=5, dela
     media_found = 0
 
     # Разделяем список тредов на пакеты
-    media_found, threads_processed = await batch_threads(batch_size, delay, dvach, media_found, media_queue,
-                                                         posted_media, threads, threads_processed)
+    for batch in range(0, len(threads), batch_size):
+        # Проверяем размер очереди
+        while media_queue.qsize() > 21:
+            logger.info("Очередь переполнена (%d элементов). Ожидание освобождения...", media_queue.qsize())
+            await asyncio.sleep(5)  # Ждём 5 секунд перед повторной проверкой
+
+        # Обрабатываем текущий пакет
+        current_batch = threads[batch:batch + batch_size]
+        media_found, threads_processed = await batch_threads(
+            batch_size, delay, dvach, media_found, media_queue,
+            posted_media, current_batch, threads_processed
+        )
+
+        logger.info("Обработан пакет из %d тредов. Общая обработка: %d тредов, найдено медиа: %d",
+                    len(current_batch), threads_processed, media_found)
 
     logger.info("Сбор медиа завершен. Обработано тредов: %d, найдено медиа: %d, очередь размером: %d",
                 threads_processed, media_found, media_queue.qsize())
