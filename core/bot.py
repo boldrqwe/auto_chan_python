@@ -6,10 +6,10 @@ import nest_asyncio
 from telegram import Bot
 from telegram.ext import ApplicationBuilder
 
-from dvach_service import DvachService
-from media_poster import post_media_from_queue
-from media_utils import check_chat_access
-from tasks import job_collect_media
+from service.dvach_service import DvachService
+from service.media_poster import post_media_from_queue
+from utils.media_utils import check_chat_access
+from service.tasks import job_collect_media
 
 # Настройка логирования
 logging.basicConfig(

@@ -1,6 +1,6 @@
 import logging
 
-from media_utils import create_input_media
+from utils.media_utils import create_input_media
 
 __STEP = 6
 

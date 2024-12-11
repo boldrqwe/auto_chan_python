@@ -1,8 +1,8 @@
 import asyncio
 import logging
 
-from harkach_markup_converter import HarkachMarkupConverter
-from thread_utils import filter_new_media, fetch_thread_data_safe, group_split
+from utils.harkach_markup_converter import HarkachMarkupConverter
+from utils.thread_utils import filter_new_media, fetch_thread_data_safe, group_split
 
 __STEP = 6
 

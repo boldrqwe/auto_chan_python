@@ -3,7 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)  #
 
-from media_utils import filter_accessible_media
+from utils.media_utils import filter_accessible_media
 
 
 async def post_media_from_queue(bot, channel_id, interval, media_queue):

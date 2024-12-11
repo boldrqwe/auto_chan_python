@@ -1,7 +1,7 @@
 import logging
 import asyncio  # Для использования asyncio.sleep
 
-from thread_service import batch_threads
+from service.thread_service import batch_threads
 
 logger = logging.getLogger(__name__)
 
