@@ -1,1 +1,1 @@
-web: python chatGpt.py
+web: python chatGpt.py && bot.py
