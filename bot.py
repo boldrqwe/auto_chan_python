@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 
 import nest_asyncio
 from telegram import Bot
@@ -52,12 +53,16 @@ def scheduled_job():
     asyncio.create_task(media)
 
 async def send_anecdote():
+    def escape_markdown_v2(text):
+        """Экранирование символов для MarkdownV2."""
+        return re.sub(r'([_*\[\]()~`>#+-=|{}.!])', r'\\\1', text)
+
     while True:
         try:
             logger.info("Генерация анекдота...")
             anecdote = chat_gpt_client.generate_response()
-            logger.info(anecdote)
-            message = await bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=anecdote, parse_mode="MarkdownV2")
+            escaped_anecdote = escape_markdown_v2(anecdote)  # Экранирование текста
+            message = await bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=escaped_anecdote, parse_mode="MarkdownV2")
             # Закрепление сообщения
             await bot.pin_chat_message(chat_id=TELEGRAM_CHANNEL_ID, message_id=message.message_id, disable_notification=True)
             logger.info("Анекдот успешно отправлен и закреплён.")
