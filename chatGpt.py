@@ -84,8 +84,8 @@ def health_check():
 
 if __name__ == "__main__":
     def run_telegram_bot():
-        asyncio.set_event_loop(asyncio.new_event_loop())  # Явно создаем новый цикл событий
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()  # Создаем новый цикл событий
+        asyncio.set_event_loop(loop)  # Устанавливаем его в текущем потоке
         loop.run_until_complete(application.run_polling())
 
     telegram_thread = threading.Thread(target=run_telegram_bot, daemon=True)
@@ -93,6 +93,13 @@ if __name__ == "__main__":
 
     from gevent.pywsgi import WSGIServer
     logger.info("Запуск Flask-сервера...")
-    http_server = WSGIServer(('0.0.0.0', 5000), app)
-    http_server.serve_forever()
+    try:
+        http_server = WSGIServer(('0.0.0.0', 5000), app)
+        http_server.serve_forever()
+    except KeyboardInterrupt:
+        logger.info("Остановка сервера...")
+        application.shutdown()  # Завершение работы Telegram-бота
+        http_server.stop()
+
+
 
