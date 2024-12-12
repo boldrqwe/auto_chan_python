@@ -1,1 +1,1 @@
-worker: python chatGpt.py
+web: python chatGpt.py
