@@ -1,1 +1,1 @@
-worker: python bot.py && python chatGpt.py
+worker: python chatGpt.py
