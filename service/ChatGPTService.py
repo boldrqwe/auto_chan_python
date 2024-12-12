@@ -37,7 +37,7 @@ class ChatGPTClient:
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": cleaned_prompt}],
                 max_tokens=400,
-                temperature=1.0
+                temperature=0.7
             )
             return response["choices"][0]["message"]["content"].strip()
         except Exception as e:
