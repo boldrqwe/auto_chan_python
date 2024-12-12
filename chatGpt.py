@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import tempfile
 import requests
 from telegram import Update
 from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder, ContextTypes
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Загрузка переменных окружения
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-OPENAI_API_ENDPOINT = "https://api.openai.com/v1/images/generations"
+OPENAI_API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
 # Проверка переменных окружения
 required_vars = ["BOT_TOKEN", "OPENAI_API_KEY"]
@@ -30,18 +29,18 @@ logger.info(", ".join(f"{var}: {globals().get(var)}" for var in required_vars))
 # Инициализация объектов
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 
+
 # Telegram обработчики
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Отправьте мне картинку и текст для создания комикса.")
+    await update.message.reply_text("Привет! Напишите мне сообщение, и я отвечу с помощью ChatGPT.")
 
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    photo_file = await update.message.photo[-1].get_file()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-        image_path = tmp_file.name
-        await photo_file.download_to_drive(image_path)
 
-    caption = update.message.caption or ""
-    logger.info("Отправка изображения и текста в OpenAI")
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
+    logger.info(f"Получено сообщение: {user_message}")
+
+    # Запрос к ChatGPT API
+    logger.info("Отправка текста в OpenAI")
     response = requests.post(
         OPENAI_API_ENDPOINT,
         headers={
@@ -49,23 +48,28 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Content-Type": "application/json"
         },
         json={
-            "prompt": caption,
-            "n": 1,
-            "size": "1024x1024"
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": user_message}
+            ]
         }
     )
+
     result = response.json()
-    if "error" in result:
-        await update.message.reply_text(f"Ошибка: {result['error']}")
+
+    if response.status_code != 200 or "error" in result:
+        error_message = result.get("error", {}).get("message", "Неизвестная ошибка")
+        logger.error(f"Ошибка OpenAI API: {error_message}")
+        await update.message.reply_text(f"Произошла ошибка при обращении к OpenAI API: {error_message}")
     else:
-        await update.message.reply_text(f"Ваш комикс: {result['data'][0]['url']}")
-    os.remove(image_path)
+        chatgpt_reply = result['choices'][0]['message']['content']
+        logger.info(f"Ответ ChatGPT: {chatgpt_reply}")
+        await update.message.reply_text(chatgpt_reply)
 
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Отправьте мне картинку вместе с текстом для создания комикса!")
 
+# Добавляем обработчики команд и сообщений
 application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
 # Запуск Telegram-бота
