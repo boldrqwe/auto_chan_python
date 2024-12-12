@@ -68,7 +68,7 @@ async def send_anecdote():
             logger.info("Анекдот успешно отправлен и закреплён.")
         except TelegramError as e:
             logger.error(f"Ошибка при отправке анекдота: {e}")
-        await asyncio.sleep(500)
+        await asyncio.sleep(1300)
 
 async def main():
     logger.info("Запуск бота...")
