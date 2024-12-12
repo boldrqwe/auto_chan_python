@@ -43,7 +43,7 @@ bot: Bot = application.bot
 
 # Инициализация сервисов
 dvach = DvachService()
-chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"))
+chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
 posted_media = set()
 media_queue = asyncio.Queue()
 
