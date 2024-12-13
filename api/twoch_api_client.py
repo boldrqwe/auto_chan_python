@@ -120,6 +120,7 @@ class TwoCHApiClient:
 
         r = requests.post(url, data=data, files=files_payload if files else None)
         r.raise_for_status()
-        response_data = r.json()
+        response_data = r.json()##
         self.logger.debug(f"Ответ на создание поста keys: {list(response_data.keys()) if isinstance(response_data, dict) else 'не dict'}")
         return response_data
+#

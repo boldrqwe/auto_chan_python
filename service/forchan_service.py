@@ -28,9 +28,10 @@ if __name__ == "__main__":
     # Сбор ссылок
     links = collect_image_links_from_b_board()
 
-    # Сохранение в файл
+    # Сохранение в файл#
     with open("b_board_image_links.txt", "w") as f:
-        for link in links:
+        for link in links:#
             f.write(link + "\n")
 
     print(f"Ссылки сохранены в b_board_image_links.txt. Всего {len(links)} изображений.")
+#

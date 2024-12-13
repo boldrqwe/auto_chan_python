@@ -20,8 +20,8 @@ async def post_media_from_queue(bot, channel_id, interval, media_queue):
 
             # Отправка медиагруппы
             await bot.send_media_group(chat_id=channel_id, media=filtered_media_group)
-            logger.info("Медиагруппа успешно отправлена.")
-
+            logger.info("Медиагруппа успешно отправлена.")#
+#
         except asyncio.TimeoutError:
             logger.warning("Отправка медиагруппы прервана по таймауту. Это не критическая ошибка.")
         except Exception as e:
@@ -31,3 +31,4 @@ async def post_media_from_queue(bot, channel_id, interval, media_queue):
                 logger.error(f"Ошибка при отправке медиагруппы: {e}")
         finally:
             await asyncio.sleep(interval)
+#

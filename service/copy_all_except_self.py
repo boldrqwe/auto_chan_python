@@ -23,8 +23,9 @@ for fname in files:
 
 # Собираем весь текст в одну строку
 final_text = "\n".join(content_list)
-
+#
 # Копируем в буфер обмена
 pyperclip.copy(final_text)
 
 print("Все файлы, кроме текущего скрипта, скопированы в буфер обмена.")
+#

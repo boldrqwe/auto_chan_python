@@ -91,9 +91,10 @@ class DvachService:
                 if attempt < max_retries - 1:
                     self.logger.info(f"Повторная попытка через {delay} секунд.")
                     time.sleep(delay)
-                else:
+                else:#
                     self.logger.exception("Исчерпаны попытки получения данных треда {thread_num}.")
                     raise
             except Exception as e:
                 self.logger.exception(f"Неожиданная ошибка при обработке данных треда {thread_num}: {e}")
                 raise
+#

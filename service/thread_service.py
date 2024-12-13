@@ -61,7 +61,8 @@ async def process_thread(t, dvach, media_queue, posted_media, media_found, threa
 
     for g in media_groups:
         await media_queue.put(g)
-        media_found += len(g)
+        media_found += len(g)#
 
     threads_processed += 1
     logger.info("Тред %s обработан. Новых медиа: %d, групп: %d.", thread_num, len(new_media), len(media_groups))
+#

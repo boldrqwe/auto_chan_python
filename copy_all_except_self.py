@@ -12,7 +12,7 @@ files = [f for f in os.listdir('.') if os.path.isfile(f) and f != current_script
 content_list = []
 
 for fname in files:
-    try:
+    try:#
         with open(fname, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
         # Добавляем разделитель, например, имя файла и подчеркивания

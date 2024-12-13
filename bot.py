@@ -76,7 +76,7 @@ async def main():
     asyncio.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
     asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
 
-    # Запуск задач: сбор медиа
+    # Запуск задач: сбор медиа#
     while True:
         scheduled_job()
         logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
