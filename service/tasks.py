@@ -25,7 +25,7 @@ async def job_collect_media(dvach, posted_media, media_queue, batch_size=5, dela
         # Проверяем размер очереди
         while media_queue.qsize() > 21:
             logger.info("Очередь переполнена (%d элементов). Ожидание освобождения...", media_queue.qsize())
-            await asyncio.sleep(5)  # Ждём 5 секунд перед повторной проверкой
+            await asyncio.sleep(60)  # Ждём 5 секунд перед повторной проверкой
 
         # Обрабатываем текущий пакет
         current_batch = threads[batch:batch + batch_size]
