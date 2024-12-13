@@ -74,7 +74,7 @@ async def main():
     logger.info("Запуск бота...")
     await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
     asyncio.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
-    asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
+    # asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
 
     # Запуск задач: сбор медиа#
     while True:
