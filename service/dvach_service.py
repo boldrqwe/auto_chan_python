@@ -1,91 +1,62 @@
-
-import requests
 import logging
 import time
 
-class DvachService:
-    BASE_URL = "https://2ch.hk"
+from api.twoch_api_client import TwoCHApiClient
 
+class DvachService:
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.api_client = TwoCHApiClient()
 
-    def fetch_threads(self, board="b", max_retries=3, delay=6):
-        url = f"{self.BASE_URL}/{board}/threads.json"
-        self.logger.info(f"Попытка получить список тредов с {url}")
-
-        for attempt in range(max_retries):
-            self.logger.debug(f"Попытка {attempt+1} из {max_retries} получить треды.")
+    def fetch_threads(self, board_name="b", retry_limit=3, retry_delay_seconds=6):
+        for retry_attempt in range(retry_limit):
             try:
-                r = requests.get(url)
-                r.raise_for_status()
-                data = r.json()
-                self.logger.debug(f"Ответ получен. Ключи: {list(data.keys()) if isinstance(data, dict) else 'не dict'}")
-                threads = data.get("threads", [])
+                self.logger.info(f"Попытка получить список тредов на доске {board_name}.")
+                data = self.api_client.get_boards()
+
+                # Если data — список, обработаем его корректно
+                threads = next((board["threads"] for board in data if board.get("id") == board_name), [])
+
                 self.logger.info(f"Получено тредов: {len(threads)}")
                 return threads
-            except requests.exceptions.HTTPError as e:
-                self.logger.error(f"HTTP Error при получении тредов с {url}: {e}")
-                if attempt < max_retries - 1:
-                    self.logger.info(f"Повторная попытка через {delay} секунд.")
-                    time.sleep(delay)
-                else:
-                    self.logger.exception("Исчерпаны попытки получения тредов.")
-                    raise
             except Exception as e:
-                self.logger.exception(f"Неожиданная ошибка при получении тредов: {e}")
-                raise
+                self.logger.exception(f"Ошибка при получении списка тредов: {e}")
+                if retry_attempt < retry_limit - 1:
+                    self.logger.info(f"Повторная попытка через {retry_delay_seconds} секунд.")
+                    time.sleep(retry_delay_seconds)
+                else:
+                    self.logger.error("Исчерпаны попытки получения тредов.")
+                    raise
 
-    def fetch_thread_data(self, thread_num, board="b", max_retries=3, delay=10):
-        url = f"{self.BASE_URL}/{board}/res/{thread_num}.json"
-        self.logger.info(f"Попытка получить данные треда {thread_num} с {url}")
-
-        for attempt in range(max_retries):
-            self.logger.debug(f"Попытка {attempt+1} из {max_retries} получить данные треда {thread_num}.")
+    def fetch_thread_data(self, thread_id, board_name="b", retry_limit=3, retry_delay_seconds=10):
+        for retry_attempt in range(retry_limit):
             try:
-                r = requests.get(url)
-                r.raise_for_status()
-                data = r.json()
-                self.logger.debug(f"Ответ для треда {thread_num} получен. Ключи: {list(data.keys()) if isinstance(data, dict) else 'не dict'}")
+                self.logger.info(f"Попытка получить данные треда {thread_id} на доске {board_name}.")
+                thread_info = self.api_client.get_thread_info(board=board_name, thread_id=thread_id)
+                post_list = thread_info.get("posts", [])
 
-                threads_data = data.get("threads", [])
-                if not threads_data:
-                    self.logger.warning(f"threads_data отсутствуют или пусты для треда {thread_num}, данные: {data}")
+                if not post_list:
+                    self.logger.warning(f"Посты отсутствуют в треде {thread_id} на доске {board_name}.")
                     return None
 
-                if not isinstance(threads_data, list) or len(threads_data) == 0:
-                    self.logger.warning(f"threads_data не список или пуст для треда {thread_num}. data: {data}")
-                    return None
+                op_post_data = post_list[0]
+                op_comment_text = op_post_data.get("comment", "Без текста")
 
-                thread_info = threads_data[0]
-                posts = thread_info.get("posts", [])
-                if not posts:
-                    self.logger.warning(f"Посты отсутствуют в треде {thread_num}, thread_info ключи: {list(thread_info.keys())}, data: {data}")
-                    return None
-
-                op_post = posts[0]
-                op_comment = op_post.get("comment", "Без текста")
-
-                media_urls = []
-                files_found = 0
-                for post in posts:
-                    p_num = post.get("num", "Unknown")
-                    files = post.get("files", [])
-                    if not isinstance(files, list):
-                        self.logger.debug(f"Поле 'files' в посте {p_num} не является списком: {files}")
-                        continue
-                    for f in files:
-                        file_path = f.get("path")
+                media_url_list = []
+                for post_data in post_list:
+                    attached_files = post_data.get("files", [])
+                    for file_metadata in attached_files:
+                        file_path = file_metadata.get("path")
                         if file_path:
-                            full_url = f"{self.BASE_URL}{file_path}"
-                            media_urls.append(full_url)
-                            files_found += 1
+                            media_url_list.append(f"{self.api_client.base_url}{file_path}")
 
-                self.logger.info(f"Тред {thread_num} получен: ОП-комментарий длиной {len(op_comment)} символов, медиафайлов: {files_found}")
+                self.logger.info(f"Тред {thread_id} получен: ОП-комментарий длиной {len(op_comment_text)} символов, медиафайлов: {len(media_url_list)}")
 
                 return {
-                    "caption": op_comment,
-                    "media": media_urls
+                    "caption": op_comment_text,
+                    "media": media_url_list
                 }
+
             except requests.exceptions.HTTPError as e:
                 self.logger.error(f"HTTP Error при получении треда {thread_num}: {e}")
                 if attempt < max_retries - 1:
@@ -97,4 +68,4 @@ class DvachService:
             except Exception as e:
                 self.logger.exception(f"Неожиданная ошибка при обработке данных треда {thread_num}: {e}")
                 raise
-#
+

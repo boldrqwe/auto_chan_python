@@ -1,6 +1,7 @@
 import requests
 import logging
 
+
 class TwoCHApiClient:
     def __init__(self, base_url="https://2ch.hk"):
         self.base_url = base_url.rstrip('/')
