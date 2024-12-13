@@ -8,7 +8,7 @@ def collect_image_links_from_b_board():
     print(f"Найдено {len(threads)} тредов на /b/ на 4chan")
 
     image_links = []
-
+ #
     # Обход всех тредов
     for thread in threads:
         thread.update()  # Обновляем данные треда
