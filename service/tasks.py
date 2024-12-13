@@ -11,7 +11,7 @@ async def job_collect_media(dvach, posted_media, media_queue, batch_size=5, dela
     logger.info("Начинаем сбор медиа с Двача...")
 
     try:
-        threads = dvach.fetch_threads(board="b")
+        threads = dvach.fetch_threads(board_name="b")
         logger.info("Получено %d тредов.", len(threads))
     except Exception as e:
         logger.error(f"Не удалось получить треды: {e}")
