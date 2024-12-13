@@ -33,15 +33,13 @@ class ChatGPTClient:
     def generate_response(self) -> str:
         try:
             raw_prompt = self.read_prompt()        # Чтение промта из файла
-            # cleaned_prompt = self.clean_prompt(raw_prompt)  # Очистка промта
-            escaped_anecdote = html.escape(raw_prompt, quote=False)
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": escaped_anecdote}],
+                messages=[{"role": "user", "content": raw_prompt}],
                 max_tokens=800,
                 temperature=0.7
             )
-            return response["choices"][0]["message"]["content"].strip()
+            return html.escape(response["choices"][0]["message"]["content"].strip(), quote=False)
         except Exception as e:
             return f"Ошибка при генерации ответа: {e}"
 
