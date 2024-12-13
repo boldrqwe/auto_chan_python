@@ -61,7 +61,7 @@ async def send_anecdote():
         try:
             logger.info("Генерация анекдота...")
             anecdote = chat_gpt_client.generate_response()
-            # escaped_anecdote = escape_markdown_v2(anecdote)  # Экранирование текста
+
             message = await bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=anecdote, parse_mode="HTML")
             # Закрепление сообщения
             await bot.pin_chat_message(chat_id=TELEGRAM_CHANNEL_ID, message_id=message.message_id, disable_notification=True)
