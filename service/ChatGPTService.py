@@ -1,6 +1,8 @@
 import openai
 import os
 import re
+import html
+
 
 # Настройки OpenAI API
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -32,10 +34,10 @@ class ChatGPTClient:
         try:
             raw_prompt = self.read_prompt()        # Чтение промта из файла
             # cleaned_prompt = self.clean_prompt(raw_prompt)  # Очистка промта
-
+            escaped_anecdote = html.escape(raw_prompt, quote=False)
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": raw_prompt}],
+                messages=[{"role": "user", "content": escaped_anecdote}],
                 max_tokens=800,
                 temperature=0.7
             )
