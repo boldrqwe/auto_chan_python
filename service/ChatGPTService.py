@@ -31,11 +31,11 @@ class ChatGPTClient:
     def generate_response(self) -> str:
         try:
             raw_prompt = self.read_prompt()        # Чтение промта из файла
-            cleaned_prompt = self.clean_prompt(raw_prompt)  # Очистка промта
+            # cleaned_prompt = self.clean_prompt(raw_prompt)  # Очистка промта
 
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": cleaned_prompt}],
+                messages=[{"role": "user", "content": raw_prompt}],
                 max_tokens=800,
                 temperature=0.7
             )
