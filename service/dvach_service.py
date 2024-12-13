@@ -13,7 +13,10 @@ class DvachService:
             try:
                 self.logger.info(f"Попытка получить список тредов на доске {board_name}.")
                 data = self.api_client.get_boards()
-                threads = next((board["threads"] for board in data.get("boards", []) if board["id"] == board_name), [])
+
+                # Если data — список, обработаем его корректно
+                threads = next((board["threads"] for board in data if board.get("id") == board_name), [])
+
                 self.logger.info(f"Получено тредов: {len(threads)}")
                 return threads
             except Exception as e:
