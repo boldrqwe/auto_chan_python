@@ -39,7 +39,7 @@ class ChatGPTClient:
                 max_tokens=800,
                 temperature=0.7
             )
-            return html.escape(response["choices"][0]["message"]["content"].strip(), quote=False)
+            return response["choices"][0]["message"]["content"].strip()
         except Exception as e:
             return f"Ошибка при генерации ответа: {e}"
 
