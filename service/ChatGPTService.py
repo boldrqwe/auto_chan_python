@@ -1,45 +1,51 @@
-import openai
-import os
-import re
-import html
+# service/ChatGPTService.py
+
+import logging
+
+import aiohttp
+
+logger = logging.getLogger(__name__)
 
 
-# Настройки OpenAI API
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
-
-# Класс для работы с OpenAI ChatGPT
 class ChatGPTClient:
-    def __init__(self, api_key: str, prompt_file: str = "prompt.md"):
+    def __init__(self, api_key, prompt_file):
         self.api_key = api_key
-        openai.api_key = api_key
         self.prompt_file = prompt_file
-
-    def read_prompt(self) -> str:
-        """Чтение содержимого файла с промтом."""
-        if not os.path.exists(self.prompt_file):
-            raise FileNotFoundError(f"Файл {self.prompt_file} не найден.")
-        with open(self.prompt_file, "r", encoding="utf-8") as file:
-            return file.read().strip()
-
-    def clean_prompt(self, prompt: str) -> str:
-        """Очистка текста промта от лишних символов и отступов."""
-        # Удаляем лишние пробелы, табуляции и пустые строки
-        prompt = re.sub(r"\s+", " ", prompt)  # Убираем лишние пробелы между словами
-        prompt = prompt.replace("\n", " ")      # Убираем переносы строк
-        prompt = re.sub(r"\s{2,}", " ", prompt) # Убираем дублирующиеся пробелы
-        return prompt.strip()
-
-    def generate_response(self) -> str:
+        # Загрузка промпта из файла
         try:
-            raw_prompt = self.read_prompt()        # Чтение промта из файла
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": raw_prompt}],
-                max_tokens=800,
-                temperature=0.7
-            )
-            return response["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            return f"Ошибка при генерации ответа: {e}"
+            with open(prompt_file, 'r', encoding='utf-8') as f:
+                self.prompt = f.read()
+        except FileNotFoundError:
+            logger.error(f"Файл промпта '{prompt_file}' не найден.")
+            self.prompt = ""
 
+    async def generate_response(self, user_input=None):
+        url = "https://api.openai.com/v1/chat/completions"  # Убедитесь, что URL актуален
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "gpt-4",  # Проверьте, что используете правильную модель
+            "messages": [
+                {"role": "system", "content": self.prompt}
+            ] if not user_input else [
+                {"role": "system", "content": self.prompt},
+                {"role": "user", "content": user_input}
+            ],
+            "max_tokens": 150,
+            "temperature": 0.7
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=data) as resp:
+                    if resp.status != 200:
+                        error = await resp.text()
+                        logger.error(f"API запрос не удался с кодом {resp.status}: {error}")
+                        raise Exception(f"API запрос не удался с кодом {resp.status}: {error}")
+                    result = await resp.json()
+                    return result['choices'][0]['message']['content'].strip()
+        except Exception as e:
+            logger.exception(f"Ошибка при запросе к API OpenAI: {e}")
+            return "Произошла ошибка при генерации анекдота."
