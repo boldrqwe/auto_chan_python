@@ -109,16 +109,16 @@ class RPGGame:
         # Определяем варианты действий в зависимости от события
         if "храм" in event:
             options = ["Исследовать храм", "Игнорировать"]
-            callback_prefix = "event_hрам"
+            callback_prefix = "храм"
         elif "гоблинов" in event:
             options = ["Сражаться", "Убегать"]
-            callback_prefix = "event_гоблины"
+            callback_prefix = "гоблины"
         elif "торговец" in event:
             options = ["Торговать", "Отказаться"]
-            callback_prefix = "event_торговец"
+            callback_prefix = "торговец"
         else:
             options = ["Продолжить"]
-            callback_prefix = "event_прочее"
+            callback_prefix = "прочее"
 
         keyboard = [[InlineKeyboardButton(option, callback_data=f"action_{callback_prefix}_{option}")] for option in options]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -166,11 +166,16 @@ class RPGGame:
             outcome += f" Вы получили предмет: {item}."
 
         # Генерация описания исхода действия с помощью ChatGPT
-        detailed_outcome = await self.chat_gpt_client.generate_response(outcome)
+        try:
+            detailed_outcome = await self.chat_gpt_client.generate_response(outcome)
+        except Exception as e:
+            logger.error(f"Ошибка при генерации описания действия: {e}")
+            detailed_outcome = outcome  # Используем базовый исход, если ChatGPT не сработал
+
         await self.bot.send_message(user_id, detailed_outcome)
         self.current_event[user_id] = None
 
-        # Предлагаем продолжить исследование или завершить
+        # Предлагаем продолжить исследование или показать статистику
         keyboard = [
             [InlineKeyboardButton("Исследовать мир", callback_data="initiate_event")],
             [InlineKeyboardButton("Показать статистику", callback_data="show_stats")]

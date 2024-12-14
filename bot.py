@@ -18,6 +18,26 @@ from telegram.error import TelegramError
 from service.ChatGPTService import ChatGPTClient
 
 # Настройка логирования
+# bot.py
+
+import asyncio
+import logging
+import os
+import re
+
+import nest_asyncio
+from telegram import Bot
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
+
+from game import RPGGame
+from service.dvach_service import DvachService
+from service.media_poster import post_media_from_queue
+from utils.media_utils import check_chat_access
+from service.tasks import job_collect_media
+from telegram.error import TelegramError
+from service.ChatGPTService import ChatGPTClient
+
+# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -42,26 +62,7 @@ if missing:
     raise ValueError(f"Не заданы переменные окружения: {', '.join(missing)}")
 logger.info(", ".join(f"{var}: {globals().get(var)}" for var in required_vars + ["POST_INTERVAL", "FETCH_BATCH_SIZE", "FETCH_DELAY"]))
 
-# Создание приложения Telegram
-application = ApplicationBuilder().token(BOT_TOKEN).build()
-bot: Bot = application.bot
-
-# Инициализация сервисов
-dvach = DvachService()
-chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
-posted_media = set()
-media_queue = asyncio.Queue()
-
-# Инициализация игры
-game = RPGGame(bot)
-game.register_handlers(application)  # Регистрация обработчиков команд игры
-
-def scheduled_job():
-    logger.info("Запуск плановой задачи по сбору медиа...")
-    media = job_collect_media(dvach, posted_media, media_queue, FETCH_BATCH_SIZE, FETCH_DELAY)
-    asyncio.create_task(media)
-
-async def send_anecdote():
+async def send_anecdote(bot, chat_gpt_client):
     def escape_markdown_v2(text):
         """Экранирование символов для MarkdownV2."""
         return re.sub(r'([_*\[\]()~`>#+-=|{}.!])', r'\\\1', text)
@@ -77,29 +78,41 @@ async def send_anecdote():
             logger.info("Анекдот успешно отправлен и закреплён.")
         except TelegramError as e:
             logger.error(f"Ошибка при отправке анекдота: {e}")
+        except Exception as e:
+            logger.error(f"Ошибка при генерации анекдота: {e}")
         await asyncio.sleep(345)
 
 async def main():
     logger.info("Запуск бота...")
 
-    # Запуск инициализации игры внутри цикла событий
+    # Создание приложения Telegram
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    bot: Bot = application.bot
+
+    # Инициализация сервисов
+    dvach = DvachService()
+    chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
+    posted_media = set()
+    media_queue = asyncio.Queue()
+
+    # Инициализация игры
+    game = RPGGame(bot)
+    game.register_handlers(application)  # Регистрация обработчиков команд игры
+
+    # Запуск инициализации игры
     asyncio.create_task(game.start_game())
 
-    await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
+    # Запуск других асинхронных задач
+    asyncio.create_task(send_anecdote(bot, chat_gpt_client))
     asyncio.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
-    asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
 
     # Запуск задач: сбор медиа
-    while True:
-        scheduled_job()
-        logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
-        await asyncio.sleep(FETCH_DELAY)
+    async def media_collector():
+        while True:
+            logger.info("Запуск плановой задачи по сбору медиа...")
+            media = job_collect_media(dvach, posted_media, media_queue, FETCH_BATCH_SIZE, FETCH_DELAY)
+            asyncio.create_task(media)
+            logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
+            await asyncio.sleep(FETCH_DELAY)
 
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())  # Запуск основного асинхронного цикла
-        application.run_polling()    # Запуск поллинга Telegram бота
-    except KeyboardInterrupt:
-        logger.info("Получен сигнал остановки. Завершаем работу...")
-    except Exception as e:
-        logger.exception("Критическая ошибка в работе бота: %s", e)
+    asyncio.create_tas
