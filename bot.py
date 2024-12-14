@@ -6,6 +6,8 @@ import re
 import nest_asyncio
 from telegram import Bot
 from telegram.ext import ApplicationBuilder
+
+from game import RPGGame
 from service.dvach_service import DvachService
 from service.media_poster import post_media_from_queue
 from utils.media_utils import check_chat_access
@@ -46,6 +48,9 @@ dvach = DvachService()
 chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
 posted_media = set()
 media_queue = asyncio.Queue()
+game = RPGGame(bot)
+game.start_game(TELEGRAM_CHANNEL_ID)
+
 
 def scheduled_job():
     logger.info("Запуск плановой задачи по сбору медиа...")
