@@ -222,6 +222,8 @@ class RPGGame:
         user_id = query.from_user.id
         data = query.data
 
+        logger.info(f"Получен callback-запрос от пользователя {user_id}: {data}")
+
         await query.answer()  # Подтверждаем получение callback-запроса
 
         if data == "set_class":
@@ -252,4 +254,3 @@ class RPGGame:
     async def start_game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         await self.add_player(user_id)
-

@@ -18,26 +18,6 @@ from telegram.error import TelegramError
 from service.ChatGPTService import ChatGPTClient
 
 # Настройка логирования
-# bot.py
-
-import asyncio
-import logging
-import os
-import re
-
-import nest_asyncio
-from telegram import Bot
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
-
-from game import RPGGame
-from service.dvach_service import DvachService
-from service.media_poster import post_media_from_queue
-from utils.media_utils import check_chat_access
-from service.tasks import job_collect_media
-from telegram.error import TelegramError
-from service.ChatGPTService import ChatGPTClient
-
-# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -46,6 +26,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Применение nest_asyncio для работы с уже запущенным циклом событий
 nest_asyncio.apply()
 
 # Загрузка переменных окружения
@@ -71,7 +52,7 @@ async def send_anecdote(bot, chat_gpt_client):
         try:
             logger.info("Генерация анекдота...")
             anecdote = await chat_gpt_client.generate_response()
-            # escaped_anecdote = escape_markdown_v2(anecdote)  # Экранирование текста
+            # escaped_anecdote = escape_markdown_v2(anecdote)  # Экранирование текста, если необходимо
             message = await bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=anecdote, parse_mode="HTML")
             # Закрепление сообщения
             await bot.pin_chat_message(chat_id=TELEGRAM_CHANNEL_ID, message_id=message.message_id, disable_notification=True)
@@ -80,7 +61,7 @@ async def send_anecdote(bot, chat_gpt_client):
             logger.error(f"Ошибка при отправке анекдота: {e}")
         except Exception as e:
             logger.error(f"Ошибка при генерации анекдота: {e}")
-        await asyncio.sleep(345)
+        await asyncio.sleep(345)  # Ждём 345 секунд перед следующим анекдотом
 
 async def main():
     logger.info("Запуск бота...")
@@ -112,7 +93,23 @@ async def main():
             logger.info("Запуск плановой задачи по сбору медиа...")
             media = job_collect_media(dvach, posted_media, media_queue, FETCH_BATCH_SIZE, FETCH_DELAY)
             asyncio.create_task(media)
-            logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
+            logger.info(f"Количество элементов в очереди: {media_queue.qsize()}")
             await asyncio.sleep(FETCH_DELAY)
 
-    asyncio.create_tas
+    asyncio.create_task(media_collector())
+
+    # Запуск поллинга Telegram бота
+    await application.start()
+    await application.updater.start_polling()
+    logger.info("Бот запущен и готов к приёму команд.")
+
+    # Ожидание завершения работы бота
+    await application.updater.idle()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())  # Запуск основного асинхронного цикла
+    except KeyboardInterrupt:
+        logger.info("Получен сигнал остановки. Завершаем работу...")
+    except Exception as e:
+        logger.exception("Критическая ошибка в работе бота: %s", e)
