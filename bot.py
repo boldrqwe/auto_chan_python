@@ -7,7 +7,7 @@ import re
 
 import nest_asyncio
 from telegram import Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from game import RPGGame
 from service.dvach_service import DvachService
@@ -82,7 +82,7 @@ async def send_anecdote():
 async def main():
     logger.info("Запуск бота...")
 
-    # Запуск инициализации игры
+    # Запуск инициализации игры внутри цикла событий
     asyncio.create_task(game.start_game())
 
     await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
