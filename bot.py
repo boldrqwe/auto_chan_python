@@ -85,15 +85,15 @@ async def main():
     # Запуск инициализации игры
     asyncio.create_task(game.start_game())
 
-    # await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
-    # asyncio.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
-    # asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
+    await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
+    asyncio.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
+    asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
 
     # Запуск задач: сбор медиа
-    # while True:
-    #     scheduled_job()
-    #     logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
-    #     await asyncio.sleep(FETCH_DELAY)
+    while True:
+        scheduled_job()
+        logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
+        await asyncio.sleep(FETCH_DELAY)
 
 if __name__ == "__main__":
     try:
