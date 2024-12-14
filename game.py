@@ -1,11 +1,8 @@
-# game.py
-
-import random
-from collections import defaultdict
 import os
+import logging
+from collections import defaultdict
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
-import logging
 
 from service.ChatGPTService import ChatGPTClient
 
@@ -13,23 +10,23 @@ logger = logging.getLogger(__name__)
 
 class RPGGame:
     def __init__(self, bot):
-        self.bot = bot  # Экземпляр Telegram Bot
-        self.players = {}  # {user_id: {"name": str, "class": str, "stats": dict}}
-        self.current_event = {}  # {user_id: event}
-        self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})  # Состояние мира для каждого пользователя
+        self.bot = bot
+        self.players = {}  # {user_id: {...}}
+        self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})
         self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
 
+        # Храним произвольную команду игрока (если была введена)
+        # {user_id: str or None}
+        self.user_custom_command = {}
+
     async def start_game(self):
-        # Асинхронная инициализация игры
         logger.info("Игра инициализирована!")
-        # Дополнительная логика инициализации, если необходимо
 
     async def add_player(self, user_id):
         if user_id in self.players:
             await self.bot.send_message(user_id, "Вы уже добавлены в игру.")
             return
 
-        self.world_state[user_id] = {"gold": 0, "resources": {}}
         self.players[user_id] = {
             "name": f"Player_{user_id}",
             "class": "Новичок",
@@ -42,215 +39,128 @@ class RPGGame:
             },
             "inventory": []
         }
-        # Отправляем приветственное сообщение с кнопкой выбора класса
-        keyboard = [
-            [InlineKeyboardButton("Выбрать класс", callback_data="set_class")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await self.bot.send_message(
-            user_id,
-            "Игра началась! Вы - единственный игрок. Выберите класс.",
-            reply_markup=reply_markup
-        )
+        self.world_state[user_id] = {"gold": 0, "resources": {}}
+        self.user_custom_command[user_id] = None
 
-    async def set_class(self, user_id):
+        await self.update_scene(user_id, "Игрок только что начал игру. Предложи ситуацию.")
+
+    async def update_scene(self, user_id, additional_message: str):
+        # Формируем контекст для GPT
+        prompt_context = self.build_context(user_id)
+        user_input = prompt_context + "\n" + additional_message
+        response = await self.chat_gpt_client.generate_response(user_input=user_input)
+        description, actions = self.parse_response(response)
+        await self.send_scenario(user_id, description, actions)
+
+    def build_context(self, user_id):
         if user_id not in self.players:
-            await self.bot.send_message(user_id, "Сначала начните игру с помощью кнопки /startgame.")
-            return
-
-        # Отправляем сообщение с доступными классами
-        keyboard = [
-            [
-                InlineKeyboardButton("Воин", callback_data="class_Воин"),
-                InlineKeyboardButton("Лучник", callback_data="class_Лучник")
-            ],
-            [
-                InlineKeyboardButton("Маг", callback_data="class_Маг"),
-                InlineKeyboardButton("Разбойник", callback_data="class_Разбойник")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await self.bot.send_message(
-            user_id,
-            "Выберите класс вашего персонажа:",
-            reply_markup=reply_markup
-        )
-
-    async def handle_class_selection(self, user_id, player_class):
-        self.players[user_id]["class"] = player_class
-        await self.bot.send_message(user_id, f"Класс успешно установлен: {player_class}")
-        # Генерация вступительного описания с помощью ChatGPT
-        intro = await self.chat_gpt_client.generate_response(f"Игрок выбрал класс {player_class}. Опиши его вступление в игру.")
-        await self.bot.send_message(user_id, intro)
-        # Предлагаем начать исследование мира
-        keyboard = [
-            [InlineKeyboardButton("Исследовать мир", callback_data="initiate_event")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await self.bot.send_message(
-            user_id,
-            "Что вы хотите сделать дальше?",
-            reply_markup=reply_markup
-        )
-
-    async def initiate_event(self, user_id):
-        if user_id not in self.players:
-            await self.bot.send_message(user_id, "Сначала начните игру с помощью кнопки /startgame.")
-            return
-
-        events = [
-            "Вы нашли заброшенный храм. Что будете делать?",
-            "Вы встретили банду гоблинов. Будете сражаться или убегать?",
-            "Перед вами торговец. Хотите поторговать?",
-        ]
-        event = random.choice(events)
-        self.current_event[user_id] = event
-
-        # Определяем варианты действий в зависимости от события
-        if "храм" in event:
-            options = ["Исследовать храм", "Игнорировать"]
-            callback_prefix = "храм"
-        elif "гоблинов" in event:
-            options = ["Сражаться", "Убегать"]
-            callback_prefix = "гоблины"
-        elif "торговец" in event:
-            options = ["Торговать", "Отказаться"]
-            callback_prefix = "торговец"
-        else:
-            options = ["Продолжить"]
-            callback_prefix = "прочее"
-
-        keyboard = [[InlineKeyboardButton(option, callback_data=f"action_{callback_prefix}_{option}")] for option in options]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await self.bot.send_message(user_id, event, reply_markup=reply_markup)
-
-    async def execute_action(self, user_id, action):
-        if user_id not in self.players:
-            await self.bot.send_message(user_id, "Сначала начните игру с помощью кнопки /startgame.")
-            return
-
-        if user_id not in self.current_event or not self.current_event[user_id]:
-            await self.bot.send_message(user_id, "Нет активных событий. Инициируйте событие с помощью кнопки \"Исследовать мир\".")
-            return
-
-        # Пример реализации действий
-        outcomes = {
-            "Исследовать храм": "Вы решили исследовать храм и нашли сокровищницу с золотом!",
-            "Игнорировать": "Вы решили игнорировать храм и продолжить путь.",
-            "Сражаться": "Вы вступили в бой с гоблинами и победили их, но потеряли немного здоровья.",
-            "Убегать": "Вы успешно убежали от гоблинов, но потеряли немного золота.",
-            "Торговать": "Вы обменяли часть ресурсов на полезные предметы у торговца.",
-            "Отказаться": "Вы решили отказаться от торговли и продолжить путь.",
-            "Продолжить": "Вы продолжили своё путешествие."
-        }
-        outcome = outcomes.get(action, "Ничего не произошло. Попробуйте другое действие.")
-
-        # Пример изменения состояния
-        if action == "Исследовать храм":
-            gold_found = random.randint(10, 50)
-            self.world_state[user_id]["gold"] += gold_found
-            outcome += f" Вы нашли {gold_found} золотых."
-        elif action == "Сражаться":
-            damage = random.randint(5, 15)
-            self.players[user_id]["stats"]["health"] -= damage
-            outcome += f" Вы потеряли {damage} здоровья."
-        elif action == "Убегать":
-            gold_lost = random.randint(5, 20)
-            self.world_state[user_id]["gold"] = max(0, self.world_state[user_id]["gold"] - gold_lost)
-            outcome += f" Вы потеряли {gold_lost} золотых."
-        elif action == "Торговать":
-            # Пример торговли: добавление предмета в инвентарь
-            item = random.choice(["Меч", "Щит", "Зелье здоровья", "Лук"])
-            self.players[user_id]["inventory"].append(item)
-            outcome += f" Вы получили предмет: {item}."
-
-        # Генерация описания исхода действия с помощью ChatGPT
-        try:
-            detailed_outcome = await self.chat_gpt_client.generate_response(outcome)
-        except Exception as e:
-            logger.error(f"Ошибка при генерации описания действия: {e}")
-            detailed_outcome = outcome  # Используем базовый исход, если ChatGPT не сработал
-
-        await self.bot.send_message(user_id, detailed_outcome)
-        self.current_event[user_id] = None
-
-        # Предлагаем продолжить исследование или показать статистику
-        keyboard = [
-            [InlineKeyboardButton("Исследовать мир", callback_data="initiate_event")],
-            [InlineKeyboardButton("Показать статистику", callback_data="show_stats")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await self.bot.send_message(
-            user_id,
-            "Что вы хотите сделать дальше?",
-            reply_markup=reply_markup
-        )
-
-    async def show_stats(self, user_id):
-        if user_id not in self.players:
-            await self.bot.send_message(user_id, "Вы ещё не добавились в игру. Используйте кнопку /startgame для начала.")
-            return
-
+            return "Игрок ещё не существует."
         player = self.players[user_id]
-        stats_message = (
-            f"Ваши характеристики:\n"
+        gold = self.world_state[user_id]["gold"]
+        inv = player["inventory"]
+        stats = player["stats"]
+        custom_cmd = self.user_custom_command.get(user_id, None)
+        custom_part = f"Произвольная команда игрока: {custom_cmd}" if custom_cmd else ""
+
+        return (
+            f"Информация об игроке:\n"
             f"Имя: {player['name']}\n"
             f"Класс: {player['class']}\n"
-            f"Здоровье: {player['stats']['health']}\n"
-            f"Сила: {player['stats']['strength']}\n"
-            f"Ловкость: {player['stats']['agility']}\n"
-            f"Интеллект: {player['stats']['intelligence']}\n"
-            f"Харизма: {player['stats']['charisma']}\n"
-            f"Общее золото: {self.world_state[user_id]['gold']}\n"
-            f"Инвентарь: {', '.join(player['inventory']) if player['inventory'] else 'Пусто'}"
+            f"Здоровье: {stats['health']}\n"
+            f"Сила: {stats['strength']}\n"
+            f"Ловкость: {stats['agility']}\n"
+            f"Интеллект: {stats['intelligence']}\n"
+            f"Харизма: {stats['charisma']}\n"
+            f"Золото: {gold}\n"
+            f"Инвентарь: {', '.join(inv) if inv else 'пусто'}\n"
+            f"{custom_part}"
         )
-        await self.bot.send_message(user_id, stats_message)
 
-    async def unknown_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text("Извините, я не понимаю эту команду.")
+    def parse_response(self, response_text: str):
+        desc_block = self.extract_block(response_text, "[DESCRIPTION]", "[DESCRIPTION_END]")
+        actions_block = self.extract_block(response_text, "[ACTIONS]", "[ACTIONS_END]")
 
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        text = update.message.text
-        # Здесь можно добавить логику обработки свободного текста, если необходимо
-        await update.message.reply_text("Используйте кнопки для взаимодействия с игрой.")
+        description = desc_block.strip() if desc_block else "Сцена не описана."
+        actions = self.parse_actions(actions_block)
+        return description, actions
 
-    # Callback Query Handlers
+    def extract_block(self, text: str, start_tag: str, end_tag: str):
+        start_idx = text.find(start_tag)
+        end_idx = text.find(end_tag)
+        if start_idx == -1 or end_idx == -1:
+            return ""
+        return text[start_idx+len(start_tag):end_idx].strip()
+
+    def parse_actions(self, actions_text: str):
+        if not actions_text:
+            return []
+        actions = []
+        for line in actions_text.split("\n"):
+            line = line.strip()
+            if line and line[0].isdigit() and '.' in line:
+                # Пример: "1. Войти в башню"
+                action = line[line.index('.')+1:].strip()
+                if action:
+                    actions.append(action)
+        return actions
+
+    async def send_scenario(self, user_id, description: str, actions: list):
+        # Если GPT не дал вариантов, предложим простой вариант
+        if not actions:
+            actions = ["Продолжить"]
+        keyboard = [[InlineKeyboardButton(a, callback_data=f"choice_{a}")] for a in actions]
+        await self.bot.send_message(user_id, description, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def process_choice(self, user_id, choice: str):
+        # Если выбрана "Произвольная команда", просим пользователя отправить текст
+        if choice.lower().startswith("произвольная команда"):
+            # Сохраняем состояние, что ждём ввода команды от игрока
+            # Будем ждать следующего текстового сообщения
+            self.user_custom_command[user_id] = None
+            await self.bot.send_message(user_id, "Введите произвольную команду:")
+            return
+        else:
+            # Просто обновляем сцену с выбранным действием
+            await self.update_scene(user_id, f"Игрок выбрал действие: {choice}. Опиши, что происходит дальше.")
+
+    async def handle_custom_command(self, user_id, text):
+        # Пользователь ввёл произвольную команду
+        self.user_custom_command[user_id] = text
+        # Теперь обновляем сцену с учётом введённой команды
+        await self.update_scene(user_id, f"Игрок ввёл произвольную команду: {text}. Учти это при развитии сюжета.")
+
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         user_id = query.from_user.id
         data = query.data
 
-        logger.info(f"Получен callback-запрос от пользователя {user_id}: {data}")
+        logger.info(f"Callback от {user_id}: {data}")
+        await query.answer()
 
-        await query.answer()  # Подтверждаем получение callback-запроса
-
-        if data == "set_class":
-            await self.set_class(user_id)
-        elif data.startswith("class_"):
-            player_class = data.split("_", 1)[1]
-            await self.handle_class_selection(user_id, player_class)
-        elif data == "initiate_event":
-            await self.initiate_event(user_id)
-        elif data.startswith("action_"):
-            # Извлекаем действие из callback_data
-            parts = data.split("_", 2)
-            if len(parts) >= 3:
-                action = parts[2]
-                await self.execute_action(user_id, action)
-        elif data == "show_stats":
-            await self.show_stats(user_id)
-        else:
-            await self.bot.send_message(user_id, "Неизвестное действие. Пожалуйста, используйте доступные кнопки.")
-
-    def register_handlers(self, application):
-        """Регистрация обработчиков команд и callback-запросов в приложении."""
-        application.add_handler(CommandHandler("startgame", self.start_game_command))
-        application.add_handler(CallbackQueryHandler(self.handle_callback_query))
-        application.add_handler(MessageHandler(filters.COMMAND, self.unknown_command))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+        if data.startswith("choice_"):
+            choice = data[len("choice_"):].strip()
+            await self.process_choice(user_id, choice)
 
     async def start_game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         await self.add_player(user_id)
+
+    async def unknown_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await update.message.reply_text("Неизвестная команда. Используйте /startgame для начала.")
+
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        text = update.message.text.strip()
+        # Проверяем, ждём ли мы произвольную команду
+        # Если user_custom_command[user_id] is None, значит мы ждали ввода
+        if user_id in self.players and self.user_custom_command.get(user_id, "not_set") is None:
+            await self.handle_custom_command(user_id, text)
+        else:
+            # Если не ждали команду, просто скажем что нужно использовать кнопки
+            await update.message.reply_text("Используйте кнопки для взаимодействия или /startgame для начала.")
+
+    def register_handlers(self, application):
+        application.add_handler(CommandHandler("startgame", self.start_game_command))
+        application.add_handler(CallbackQueryHandler(self.handle_callback_query))
+        application.add_handler(MessageHandler(filters.COMMAND, self.unknown_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
