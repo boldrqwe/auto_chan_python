@@ -15,20 +15,19 @@ class RPGGame:
         self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})
         self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
 
-        # Храним произвольную команду игрока (если была введена)
-        # {user_id: str or None}
+        # Произвольная команда игрока {user_id: str or None}
         self.user_custom_command = {}
 
     async def start_game(self):
         logger.info("Игра инициализирована!")
 
-    async def add_player(self, user_id):
+    async def add_player(self, user_id, player_name):
         if user_id in self.players:
             await self.bot.send_message(user_id, "Вы уже добавлены в игру.")
             return
 
         self.players[user_id] = {
-            "name": f"Player_{user_id}",
+            "name": player_name,
             "class": "Новичок",
             "stats": {
                 "strength": 5,
@@ -36,13 +35,15 @@ class RPGGame:
                 "intelligence": 5,
                 "charisma": 5,
                 "health": 100,
+                "stamina": 50,
+                "magic": 10
             },
             "inventory": []
         }
         self.world_state[user_id] = {"gold": 0, "resources": {}}
         self.user_custom_command[user_id] = None
 
-        await self.update_scene(user_id, "Игрок только что начал игру. Предложи ситуацию.")
+        await self.update_scene(user_id, "Игрок только что начал игру, он выбрал имя.")
 
     async def update_scene(self, user_id, additional_message: str):
         # Формируем контекст для GPT
@@ -63,10 +64,11 @@ class RPGGame:
         custom_part = f"Произвольная команда игрока: {custom_cmd}" if custom_cmd else ""
 
         return (
-            f"Информация об игроке:\n"
-            f"Имя: {player['name']}\n"
+            f"Имя игрока: {player['name']}\n"
             f"Класс: {player['class']}\n"
             f"Здоровье: {stats['health']}\n"
+            f"Стамина: {stats['stamina']}\n"
+            f"Магия: {stats['magic']}\n"
             f"Сила: {stats['strength']}\n"
             f"Ловкость: {stats['agility']}\n"
             f"Интеллект: {stats['intelligence']}\n"
@@ -97,44 +99,34 @@ class RPGGame:
         actions = []
         for line in actions_text.split("\n"):
             line = line.strip()
-            if line and line[0].isdigit() and '.' in line:
-                # Пример: "1. Войти в башню"
-                action = line[line.index('.')+1:].strip()
-                if action:
-                    actions.append(action)
+            if line:
+                actions.append(line)
         return actions
 
     async def send_scenario(self, user_id, description: str, actions: list):
-        # Если GPT не дал вариантов, предложим простой вариант
         if not actions:
             actions = ["Продолжить"]
         keyboard = [[InlineKeyboardButton(a, callback_data=f"choice_{a}")] for a in actions]
         await self.bot.send_message(user_id, description, reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def process_choice(self, user_id, choice: str):
-        # Если выбрана "Произвольная команда", просим пользователя отправить текст
-        if choice.lower().startswith("произвольная команда"):
-            # Сохраняем состояние, что ждём ввода команды от игрока
-            # Будем ждать следующего текстового сообщения
+        # Если выбрана "Действие" (Произвольная команда)
+        if choice.lower().startswith("действие"):
             self.user_custom_command[user_id] = None
             await self.bot.send_message(user_id, "Введите произвольную команду:")
             return
         else:
-            # Просто обновляем сцену с выбранным действием
+            # Обновляем сцену
             await self.update_scene(user_id, f"Игрок выбрал действие: {choice}. Опиши, что происходит дальше.")
 
     async def handle_custom_command(self, user_id, text):
-        # Пользователь ввёл произвольную команду
         self.user_custom_command[user_id] = text
-        # Теперь обновляем сцену с учётом введённой команды
         await self.update_scene(user_id, f"Игрок ввёл произвольную команду: {text}. Учти это при развитии сюжета.")
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         user_id = query.from_user.id
         data = query.data
-
-        logger.info(f"Callback от {user_id}: {data}")
         await query.answer()
 
         if data.startswith("choice_"):
@@ -143,7 +135,9 @@ class RPGGame:
 
     async def start_game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
-        await self.add_player(user_id)
+        # Предлагаем игроку ввести имя
+        await self.bot.send_message(user_id, "Введите имя вашего персонажа:")
+        # Следующее сообщение будет обработано в handle_message
 
     async def unknown_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Неизвестная команда. Используйте /startgame для начала.")
@@ -151,12 +145,17 @@ class RPGGame:
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         text = update.message.text.strip()
-        # Проверяем, ждём ли мы произвольную команду
-        # Если user_custom_command[user_id] is None, значит мы ждали ввода
+
+        # Если игрок ещё не существует и мы ждали имя
+        if user_id not in self.players:
+            # Считаем, что это ввод имени
+            await self.add_player(user_id, text)
+            return
+
+        # Если ждём произвольную команду
         if user_id in self.players and self.user_custom_command.get(user_id, "not_set") is None:
             await self.handle_custom_command(user_id, text)
         else:
-            # Если не ждали команду, просто скажем что нужно использовать кнопки
             await update.message.reply_text("Используйте кнопки для взаимодействия или /startgame для начала.")
 
     def register_handlers(self, application):

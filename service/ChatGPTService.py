@@ -1,3 +1,4 @@
+
 import aiohttp
 import os
 import logging
@@ -38,10 +39,10 @@ class ChatGPTClient:
                 async with session.post(url, headers=headers, json=data) as resp:
                     if resp.status != 200:
                         error = await resp.text()
-                        logger.error(f"API запрос не удался с кодом {resp.status}: {error}")
-                        raise Exception(f"API запрос не удался с кодом {resp.status}: {error}")
+                        logger.error(f"API запрос не удался: {resp.status} {error}")
+                        raise Exception(f"API запрос не удался: {resp.status}")
                     result = await resp.json()
                     return result['choices'][0]['message']['content'].strip()
         except Exception as e:
-            logger.exception(f"Ошибка при запросе к API OpenAI: {e}")
+            logger.exception(f"Ошибка при запросе к OpenAI API: {e}")
             return "Произошла ошибка при генерации ответа."
