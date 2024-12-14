@@ -1,7 +1,7 @@
 from nudenet import NudeDetector
 
 
-def contains_pornographic_content(image_path, threshold=0.6):
+def contains_pornographic_content(image_path, threshold=0.45):
     """
     Проверяет, содержит ли изображение порнографический контент.
 
