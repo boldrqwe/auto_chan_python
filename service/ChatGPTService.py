@@ -1,11 +1,10 @@
 # service/ChatGPTService.py
 
+import aiohttp
+import os
 import logging
 
-import aiohttp
-
 logger = logging.getLogger(__name__)
-
 
 class ChatGPTClient:
     def __init__(self, api_key, prompt_file):

@@ -98,6 +98,9 @@ async def main():
 
     asyncio.create_task(media_collector())
 
+    # Инициализация Application
+    await application.initialize()  # <--- Добавлено
+
     # Запуск поллинга Telegram бота
     await application.start()
     await application.updater.start_polling()
