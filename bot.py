@@ -80,7 +80,7 @@ async def post_init(application):
     """Функция, вызываемая после инициализации приложения, перед запуском поллинга."""
     await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
     # Запускаем фоновые задачи
-    application.create_task(send_anecdotes_task(bot, chat_gpt_client, TELEGRAM_CHANNEL_ID))
+    # application.create_task(send_anecdotes_task(bot, chat_gpt_client, TELEGRAM_CHANNEL_ID))
     application.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
     application.create_task(media_collector_task(dvach, posted_media, media_queue, FETCH_BATCH_SIZE, FETCH_DELAY))
     logger.info("Бот инициализирован и фоновые задачи запущены.")
