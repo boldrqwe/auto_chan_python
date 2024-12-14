@@ -6,14 +6,15 @@ class RPGGame:
     def __init__(self, bot):
         self.bot = bot  # Telegram Bot instance
         self.players = {}  # {user_id: {"name": str, "class": str, "stats": dict}}
-        self.team_votes = defaultdict(list)  # {action: [user_id, user_id, ...]}
-        self.current_event = None  # Stores the current event or scenario
-        self.world_state = {"gold": 0, "resources": {}}  # Shared team state
+        self.current_event = {}  # {user_id: event}
+        self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})  # Per-user state
 
-    async def start_game(self, user_id):
-        self.world_state = {"gold": 0, "resources": {}}
-        self.players = {}
-        self.current_event = None
+    async def start_game(self):
+        # Placeholder for initialization logic when game starts
+        return "Игра инициализирована! Используйте команды для взаимодействия."
+
+    async def add_player(self, user_id):
+        self.world_state[user_id] = {"gold": 0, "resources": {}}
         self.players[user_id] = {
             "name": f"Player_{user_id}",
             "class": "Новичок",
@@ -30,7 +31,7 @@ class RPGGame:
 
     async def set_class(self, user_id, player_class):
         if user_id not in self.players:
-            await self.bot.send_message(user_id, "Сначала начните игру с помощью команды /start")
+            await self.bot.send_message(user_id, "Сначала добавьтесь в игру с помощью команды /addplayer")
             return
 
         self.players[user_id]["class"] = player_class
@@ -42,33 +43,15 @@ class RPGGame:
             "Вы встретили банду гоблинов. Будете сражаться или убегать?",
             "Перед вами торговец. Хотите поторговать?",
         ]
-        self.current_event = random.choice(events)
-        self.team_votes.clear()
-        await self.bot.send_message(user_id, self.current_event)
-        await self.bot.send_message(user_id, "Выберите действие: /vote <действие>")
-
-    def register_vote(self, user_id, action):
-        # Удаляем предыдущие голоса пользователя
-        for key in self.team_votes:
-            if user_id in self.team_votes[key]:
-                self.team_votes[key].remove(user_id)
-
-        self.team_votes[action].append(user_id)
-        return f"Голос за '{action}' успешно зарегистрирован!"
-
-    async def calculate_votes(self, user_id):
-        if not self.team_votes:
-            await self.bot.send_message(user_id, "Вы не проголосовали!")
-            return
-
-        # Подсчёт голосов
-        votes_count = {action: len(voters) for action, voters in self.team_votes.items()}
-        most_voted = max(votes_count, key=votes_count.get)
-
-        await self.bot.send_message(user_id, f"Вы выбрали действие: '{most_voted}'")
-        await self.execute_action(user_id, most_voted)
+        self.current_event[user_id] = random.choice(events)
+        await self.bot.send_message(user_id, self.current_event[user_id])
+        await self.bot.send_message(user_id, "Выберите действие: /action <действие>")
 
     async def execute_action(self, user_id, action):
+        if user_id not in self.players:
+            await self.bot.send_message(user_id, "Сначала добавьтесь в игру с помощью команды /addplayer")
+            return
+
         # Пример реализации действий
         outcomes = {
             "исследовать": "Вы нашли сундук с золотом!",
@@ -80,17 +63,16 @@ class RPGGame:
 
         # Пример изменения состояния
         if action == "исследовать":
-            self.world_state["gold"] += random.randint(10, 50)
+            self.world_state[user_id]["gold"] += random.randint(10, 50)
         elif action == "сражаться":
-            if user_id in self.players:
-                self.players[user_id]["stats"]["health"] -= random.randint(5, 15)
+            self.players[user_id]["stats"]["health"] -= random.randint(5, 15)
 
         await self.bot.send_message(user_id, outcome)
-        self.current_event = None
+        self.current_event[user_id] = None
 
     async def show_stats(self, user_id):
         if user_id not in self.players:
-            await self.bot.send_message(user_id, "Вы ещё не начали игру. Используйте /start для начала.")
+            await self.bot.send_message(user_id, "Вы ещё не добавились в игру. Используйте /addplayer для начала.")
             return
 
         player = self.players[user_id]
@@ -102,5 +84,5 @@ class RPGGame:
                          f"Ловкость: {player['stats']['agility']}\n"
                          f"Интеллект: {player['stats']['intelligence']}\n"
                          f"Харизма: {player['stats']['charisma']}\n"
-                         f"Общее золото: {self.world_state['gold']}")
+                         f"Общее золото: {self.world_state[user_id]['gold']}")
         await self.bot.send_message(user_id, stats_message)

@@ -49,7 +49,7 @@ chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt
 posted_media = set()
 media_queue = asyncio.Queue()
 game = RPGGame(bot)
-game.start_game(TELEGRAM_CHANNEL_ID)
+game.start_game()
 
 
 def scheduled_job():
