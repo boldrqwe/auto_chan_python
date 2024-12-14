@@ -10,12 +10,12 @@ class RPGGame:
         self.current_event = None  # Stores the current event or scenario
         self.world_state = {"gold": 0, "resources": {}}  # Shared team state
 
-    def start_game(self, chat_id):
+    async def start_game(self, chat_id):
         self.world_state = {"gold": 0, "resources": {}}
         self.players = {}
         self.current_event = None
-        self.bot.send_message(chat_id,
-                              "Игра началась! Добавьтесь в команду, выберите класс и начинаем исследование мира! Используйте /join <имя> <класс>.")
+        await self.bot.send_message(chat_id,
+                                    "Игра началась! Добавьтесь в команду, выберите класс и начинаем исследование мира! Используйте /join <имя> <класс>.")
 
     def join_game(self, user_id, name, player_class):
         if user_id in self.players:
@@ -35,7 +35,7 @@ class RPGGame:
         }
         return f"{name} (Класс: {player_class}) успешно присоединился к игре!"
 
-    def initiate_event(self, chat_id):
+    async def initiate_event(self, chat_id):
         events = [
             "Вы нашли заброшенный храм. Что будете делать?",
             "Вы встретили банду гоблинов. Будете сражаться или убегать?",
@@ -43,8 +43,8 @@ class RPGGame:
         ]
         self.current_event = random.choice(events)
         self.team_votes.clear()
-        self.bot.send_message(chat_id, self.current_event)
-        self.bot.send_message(chat_id, "Голосуйте за действие: /vote <действие>")
+        await self.bot.send_message(chat_id, self.current_event)
+        await self.bot.send_message(chat_id, "Голосуйте за действие: /vote <действие>")
 
     def register_vote(self, user_id, action):
         # Удаляем предыдущие голоса пользователя
@@ -55,18 +55,19 @@ class RPGGame:
         self.team_votes[action].append(user_id)
         return f"Голос за '{action}' успешно зарегистрирован!"
 
-    def calculate_votes(self, chat_id):
+    async def calculate_votes(self, chat_id):
         if not self.team_votes:
-            return "Никто не проголосовал!"
+            await self.bot.send_message(chat_id, "Никто не проголосовал!")
+            return
 
         # Подсчёт голосов
         votes_count = {action: len(voters) for action, voters in self.team_votes.items()}
         most_voted = max(votes_count, key=votes_count.get)
 
-        self.bot.send_message(chat_id, f"Действие с наибольшим количеством голосов: '{most_voted}'")
-        self.execute_action(chat_id, most_voted)
+        await self.bot.send_message(chat_id, f"Действие с наибольшим количеством голосов: '{most_voted}'")
+        await self.execute_action(chat_id, most_voted)
 
-    def execute_action(self, chat_id, action):
+    async def execute_action(self, chat_id, action):
         # Пример реализации действий
         outcomes = {
             "исследовать": "Вы нашли сундук с золотом!",
@@ -83,17 +84,13 @@ class RPGGame:
             for player in self.players.values():
                 player["stats"]["health"] -= random.randint(5, 15)
 
-        self.bot.send_message(chat_id, outcome)
+        await self.bot.send_message(chat_id, outcome)
         self.current_event = None
 
-    def show_stats(self, chat_id):
+    async def show_stats(self, chat_id):
         stats_message = "Состояние команды:\n"
         for player in self.players.values():
             stats_message += f"{player['name']} (Класс: {player['class']}) - Здоровье: {player['stats']['health']}\n"
         stats_message += f"Общее золото команды: {self.world_state['gold']}"
-        self.bot.send_message(chat_id, stats_message)
+        await self.bot.send_message(chat_id, stats_message)
 
-# Пример использования:
-# bot = YourTelegramBotInstance()
-# game = RPGGame(bot)
-# game.start_game(chat_id)

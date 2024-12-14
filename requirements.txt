@@ -8,3 +8,6 @@ pyperclip==1.9.0
 python-telegram-bot==21.9
 Requests==2.32.3
 tensorflow-cpu
+aiogram==2.24
+python-dotenv==1.0.0
+

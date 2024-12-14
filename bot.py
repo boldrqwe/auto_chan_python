@@ -48,8 +48,22 @@ dvach = DvachService()
 chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
 posted_media = set()
 media_queue = asyncio.Queue()
+from aiogram import Dispatcher, types
+
+dp = Dispatcher(bot)
+
 game = RPGGame(bot)
-game.start_game(TELEGRAM_CHANNEL_ID)
+
+@dp.message_handler(commands=["start_game"])
+async def start_game_handler(message: types.Message):
+    await game.start_game(message.chat.id)
+
+@dp.message_handler(commands=["vote"])
+async def vote_handler(message: types.Message):
+    action = message.get_args()
+    response = game.register_vote(message.from_user.id, action)
+    await message.reply(response)
+
 
 
 def scheduled_job():
