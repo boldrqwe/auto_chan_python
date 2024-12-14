@@ -16,11 +16,11 @@ class DvachService:
         for attempt in range(max_retries):
             self.logger.debug(f"Попытка {attempt+1} из {max_retries} получить треды.")
             try:
-                r = requests.get(url)
-                r.raise_for_status()
-                data = r.json()
-                self.logger.debug(f"Ответ получен. Ключи: {list(data.keys()) if isinstance(data, dict) else 'не dict'}")
-                threads = data.get("threads", [])
+                response = requests.get(url)
+                response.raise_for_status()
+                data_json = response.json()
+                self.logger.debug(f"Ответ получен. Ключи: {list(data_json.keys()) if isinstance(data_json, dict) else 'не dict'}")
+                threads = data_json.get("threads", [])
                 self.logger.info(f"Получено тредов: {len(threads)}")
                 return threads
             except requests.exceptions.HTTPError as e:

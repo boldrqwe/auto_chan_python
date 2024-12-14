@@ -17,8 +17,8 @@ async def batch_threads(batch_size, delay, dvach, media_found, media_queue, post
     """
     for i in range(0, len(threads), batch_size):
         batch = threads[i:i + batch_size]
-        for t in batch:
-            await process_thread(t, dvach, media_queue, posted_media, media_found, threads_processed)
+        for thread in batch:
+            await process_thread(thread, dvach, media_queue, posted_media, media_found, threads_processed)
 
         # Пауза перед следующим пакетом тредов
         logger.info("Пакет тредов обработан. Ждём %d секунд перед следующим пакетом.", delay)
@@ -27,13 +27,13 @@ async def batch_threads(batch_size, delay, dvach, media_found, media_queue, post
     return media_found, threads_processed
 
 
-async def process_thread(t, dvach, media_queue, posted_media, media_found, threads_processed):
+async def process_thread(thread, dvach, media_queue, posted_media, media_found, threads_processed):
     """
     Обрабатывает один тред: загружает данные, фильтрует медиа, формирует группы и добавляет их в очередь.
     """
-    thread_num = t.get("num") or t.get("thread_num")
+    thread_num = thread.get("num") or thread.get("thread_num")
     if not thread_num:
-        logger.debug(f"Пропускаем тред без номера: {t}")
+        logger.debug(f"Пропускаем тред без номера: {thread}")
         return
 
     # Безопасное получение данных треда
