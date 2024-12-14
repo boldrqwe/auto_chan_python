@@ -1,3 +1,5 @@
+# bot.py
+
 import asyncio
 import logging
 import os
@@ -5,7 +7,7 @@ import re
 
 import nest_asyncio
 from telegram import Bot
-from telegram.ext import ApplicationBuilder
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 from game import RPGGame
 from service.dvach_service import DvachService
@@ -40,6 +42,7 @@ if missing:
     raise ValueError(f"Не заданы переменные окружения: {', '.join(missing)}")
 logger.info(", ".join(f"{var}: {globals().get(var)}" for var in required_vars + ["POST_INTERVAL", "FETCH_BATCH_SIZE", "FETCH_DELAY"]))
 
+# Создание приложения Telegram
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 bot: Bot = application.bot
 
@@ -48,9 +51,10 @@ dvach = DvachService()
 chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
 posted_media = set()
 media_queue = asyncio.Queue()
-game = RPGGame(bot)
-game.start_game()
 
+# Инициализация игры
+game = RPGGame(bot)
+game.register_handlers(application)  # Регистрация обработчиков команд игры
 
 def scheduled_job():
     logger.info("Запуск плановой задачи по сбору медиа...")
@@ -65,7 +69,7 @@ async def send_anecdote():
     while True:
         try:
             logger.info("Генерация анекдота...")
-            anecdote = chat_gpt_client.generate_response()
+            anecdote = await chat_gpt_client.generate_response()
             # escaped_anecdote = escape_markdown_v2(anecdote)  # Экранирование текста
             message = await bot.send_message(chat_id=TELEGRAM_CHANNEL_ID, text=anecdote, parse_mode="HTML")
             # Закрепление сообщения
@@ -77,21 +81,25 @@ async def send_anecdote():
 
 async def main():
     logger.info("Запуск бота...")
-    await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
-    asyncio.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
-    asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
 
-    # Запуск задач: сбор медиа#
-    while True:
-        scheduled_job()
-        logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
-        await asyncio.sleep(FETCH_DELAY)
+    # Запуск инициализации игры
+    asyncio.create_task(game.start_game())
+
+    # await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
+    # asyncio.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
+    # asyncio.create_task(send_anecdote())  # Отправка анекдотов независимо
+
+    # Запуск задач: сбор медиа
+    # while True:
+    #     scheduled_job()
+    #     logger.info("Количество элементов в очереди: " + str(media_queue.qsize()))
+    #     await asyncio.sleep(FETCH_DELAY)
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        asyncio.run(main())  # Запуск основного асинхронного цикла
+        application.run_polling()    # Запуск поллинга Telegram бота
     except KeyboardInterrupt:
         logger.info("Получен сигнал остановки. Завершаем работу...")
     except Exception as e:
         logger.exception("Критическая ошибка в работе бота: %s", e)
-
