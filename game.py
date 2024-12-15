@@ -47,6 +47,30 @@ class RPGGame:
             f"{custom_part}"
         )
 
+    async def add_player(self, user_id, player_name):
+        if user_id in self.players:
+            await self.bot.send_message(user_id, "Вы уже добавлены в игру.")
+            return
+
+        self.players[user_id] = {
+            "name": player_name,
+            "class": "Новичок",
+            "stats": {
+                "strength": 5,
+                "agility": 5,
+                "intelligence": 5,
+                "charisma": 5,
+                "health": 100,
+                "stamina": 50,
+                "magic": 10
+            },
+            "inventory": []
+        }
+        self.world_state[user_id] = {"gold": 0, "resources": {}}
+        self.user_custom_command[user_id] = None
+
+        await self.update_scene(user_id, "Игрок только что начал игру, он выбрал имя.")
+
     def parse_response(self, response_text: str):
         desc_block = self.extract_block(response_text, "[DESCRIPTION]", "[DESCRIPTION_END]")
         actions_block = self.extract_block(response_text, "[ACTIONS]", "[ACTIONS_END]")
