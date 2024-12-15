@@ -1,13 +1,23 @@
+import logging
 import os
 import requests
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-import json
+import re
+from datetime import datetime
+
 
 class RPGGameCommandHandler:
     """Класс для обработки команд и взаимодействия с ChatGPT."""
     BASE_CHATGPT_URL = "https://autochanpython-production.up.railway.app/chat"
 
     def __init__(self):
+        # Настройка логирования
+        logging.basicConfig(
+            level=logging.INFO,  # Уровень логирования: DEBUG, INFO, WARNING, ERROR, CRITICAL
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
         # Устанавливаем абсолютный путь к папке с промптами
         self.prompts_path = os.path.join(os.path.dirname(__file__), "prompts")
         self.character = {
@@ -23,16 +33,12 @@ class RPGGameCommandHandler:
         }
         self.item_pool = {}  # Словарь для хранения предметов
 
-    @staticmethod
-    def parse_json(input_str: str):
-        """Парсит JSON из строки."""
-        try:
-            escaped_str = input_str.strip()
-            parsed_json = json.loads(escaped_str)
-            return parsed_json
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON: {e}")
-            return None
+    def log_event(self, user_id: str, action: str, response: str, error: str = None):
+        """Логирует событие в консоль."""
+        if error:
+            logging.error(f"User: {user_id}, Action: {action}, Response: {response}, Error: {error}")
+        else:
+            logging.info(f"User: {user_id}, Action: {action}, Response: {response}")
 
     def load_prompt(self, action: str) -> str:
         """
@@ -42,14 +48,14 @@ class RPGGameCommandHandler:
         """
         filename = f"{action}.txt"  # Только имя файла без пути
         filepath = os.path.join(self.prompts_path, filename)
-        print(f"Loading prompt from: {filepath}")  # Отладка
+        logging.info(f"Loading prompt from: {filepath}")  # Отладка
         try:
             with open(filepath, "r", encoding="utf-8") as file:
                 content = file.read().strip()
-                print(f"Prompt content:\n{content}")  # Отладка
+                logging.debug(f"Prompt content:\n{content}")  # Отладка
                 return content
         except FileNotFoundError:
-            print(f"Prompt file {filename} not found. Falling back to default prompt.")
+            logging.warning(f"Prompt file {filename} not found. Falling back to default prompt.")
             return self.load_default_prompt()
 
     def load_default_prompt(self) -> str:
@@ -58,74 +64,93 @@ class RPGGameCommandHandler:
         """
         default_filename = "default.txt"
         default_filepath = os.path.join(self.prompts_path, default_filename)
-        print(f"Loading default prompt from: {default_filepath}")  # Отладка
+        logging.info(f"Loading default prompt from: {default_filepath}")  # Отладка
         try:
             with open(default_filepath, "r", encoding="utf-8") as file:
                 content = file.read().strip()
-                print(f"Default prompt content:\n{content}")  # Отладка
+                logging.debug(f"Default prompt content:\n{content}")  # Отладка
                 return content
         except FileNotFoundError:
-            print(f"Default prompt file {default_filename} not found.")
+            logging.error(f"Default prompt file {default_filename} not found.")
             return "Добро пожаловать в игру! Ваше приключение начинается здесь."
 
-    def fetch_chat_response(self, player_message: str, prompt: str) -> dict:
-        """Отправляет запрос в ChatGPT и возвращает JSON-ответ."""
-        payload = {"player_message": player_message, "prompt": prompt}
+    def fetch_chat_response(self, player_message: str, prompt: str, user_data: dict) -> str:
+        """Отправляет запрос в ChatGPT и возвращает строковый ответ с учетом контекста."""
+        # Формируем полный промпт, включая историю
+        history = user_data.get('history', [])
+        history_text = "\n".join(history)
+        full_prompt = f"{prompt}\n\nИстория игры:\n{history_text}\n\nДействие игрока: {player_message}"
+
+        payload = {"player_message": player_message, "prompt": full_prompt}
         try:
             response = requests.post(self.BASE_CHATGPT_URL, json=payload, timeout=10)
             response.raise_for_status()
-            raw_response = response.text
+            raw_response = response.json()
 
-            # Используем parse_json для обработки строки JSON
-            parsed_response = self.parse_json(raw_response)
+            # Логирование полного ответа для отладки
+            logging.info(f"Raw ChatGPT Response: {raw_response}")
+            self.log_event(user_id="unknown", action=player_message, response=raw_response)
 
-            if parsed_response:
-                print("ChatGPT Response:", json.dumps(parsed_response, ensure_ascii=False, indent=2))
-                return parsed_response.get("response", {})
-            else:
-                return self.default_answer()
+            # Проверка наличия необходимых тегов
+            game_event = raw_response.get("response")
+
+            return game_event
+
         except (requests.RequestException, ValueError) as e:
-            print(f"Error during request: {e}")
-            return self.default_answer()
-
-    def default_answer(self):
-        return {
-            "description": "Ответ некорректен. Попробуйте снова.",
-            "actions": ["Продолжить"],
-            "event_picture": ""
-        }
+            logging.error(f"Error during request: {e}")
+            self.log_event(user_id="unknown", action=player_message, response="", error=str(e))
+            return ""
 
     def parse_response(self, chat_response: str, user_data: dict) -> (str, InlineKeyboardMarkup, str):
         """
         Парсит ответ ChatGPT и возвращает описание, кнопки и ASCII-арт.
-        Также генерирует уникальные callback_data для кнопок и сохраняет их в user_data.
+        Извлекает содержимое между тегами DESCRIPTION, ACTIONS и EVENT_PICTURE.
         """
-        parsed_response = self.parse_json(chat_response)
+        # Регулярные выражения для поиска содержимого между тегами
+        description_pattern = r'DESCRIPTION:\s*(.*?)\s*ACTIONS:'
+        actions_pattern = r'ACTIONS:\s*(.*?)\s*EVENT_PICTURE:'
+        event_picture_pattern = r'EVENT_PICTURE:\s*(.*)'
 
-        if not parsed_response or not isinstance(parsed_response, dict):
+        description_match = re.search(description_pattern, chat_response, re.DOTALL | re.IGNORECASE)
+        actions_match = re.search(actions_pattern, chat_response, re.DOTALL | re.IGNORECASE)
+        event_picture_match = re.search(event_picture_pattern, chat_response, re.DOTALL | re.IGNORECASE)
+
+        if not description_match or not actions_match or not event_picture_match:
+            logging.error("Некорректный формат ответа от ChatGPT.")
             return (
                 "Произошла ошибка при обработке ответа. Попробуйте снова.",
                 InlineKeyboardMarkup([[InlineKeyboardButton("Продолжить", callback_data="continue")]]),
                 ""
             )
 
-        description = parsed_response.get("description", "Произошла ошибка.")
-        actions = parsed_response.get("actions", ["Продолжить"])
-        event_picture = parsed_response.get("event_picture", "")
+        description = description_match.group(1).strip()
+        actions = [action.strip() for action in actions_match.group(1).split(',')]
+        event_picture = event_picture_match.group(1).strip()
 
-        if not isinstance(actions, list) or not all(isinstance(action, str) for action in actions):
-            actions = ["Продолжить"]
+        # Дополнительная проверка на наличие всех необходимых частей
+        if not description or not actions or not event_picture:
+            logging.error("Отсутствуют необходимые части в ответе.")
+            return (
+                "Произошла ошибка при обработке ответа. Попробуйте снова.",
+                InlineKeyboardMarkup([[InlineKeyboardButton("Продолжить", callback_data="continue")]]),
+                ""
+            )
 
         # Генерируем уникальные идентификаторы для действий
         action_mapping = {}
         buttons = []
         for idx, action in enumerate(actions):
-            action_id = f"action_{idx}"
+            action_id = f"action_{len(user_data.get('action_mapping', {}))}_{idx}"  # Уникальный ID
             action_mapping[action_id] = action
             buttons.append([InlineKeyboardButton(action, callback_data=action_id)])
 
         # Сохраняем сопоставление действий в user_data
-        user_data['action_mapping'] = action_mapping
+        if 'action_mapping' not in user_data:
+            user_data['action_mapping'] = {}
+        user_data['action_mapping'].update(action_mapping)
+
+        # Обновляем историю
+        user_data.setdefault('history', []).append(f"Система: {description}")
 
         return description, InlineKeyboardMarkup(buttons), event_picture
 
@@ -158,7 +183,8 @@ class RPGGameCommandHandler:
 
     def get_characteristics(self) -> str:
         """Возвращает строку с текущими характеристиками персонажа."""
-        inventory = ", ".join([self.item_pool[item_id]["name"] for item_id in self.character["inventory"]]) if self.character["inventory"] else "пусто"
+        inventory = ", ".join([self.item_pool[item_id]["name"] for item_id in self.character["inventory"]]) if \
+        self.character["inventory"] else "пусто"
         return (
             f"Имя: {self.character['name']}\n"
             f"Класс: {self.character['class']}\n"

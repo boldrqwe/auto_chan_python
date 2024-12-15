@@ -14,10 +14,20 @@ class RPGGameBot:
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает команду /start."""
+        # Инициализируем состояние игры
+        context.user_data['history'] = ["Игра началась."]
+        context.user_data['action_mapping'] = {}
+
         characteristics = self.command_handler.get_characteristics()
         # Загрузка промпта для начального состояния
         prompt = self.command_handler.load_prompt("default")
-        chat_response = self.command_handler.fetch_chat_response("start", prompt)
+        chat_response = self.command_handler.fetch_chat_response("start", prompt, context.user_data)
+
+        if not chat_response:
+            await update.message.reply_text(
+                "Произошла ошибка при получении ответа от игрового мастера.",
+            )
+            return
 
         description, buttons, event_picture = self.command_handler.parse_response(chat_response, context.user_data)
         # Отправляем сообщение с характеристиками, описанием и ASCII-артом
@@ -32,6 +42,8 @@ class RPGGameBot:
         await query.answer()  # Подтверждаем нажатие кнопки
         action_id = query.data
 
+        user_id = str(update.effective_user.id)  # Получаем ID пользователя для логирования
+
         # Получаем сопоставление действий из user_data
         action_mapping = context.user_data.get('action_mapping', {})
         action_text = action_mapping.get(action_id)
@@ -41,17 +53,8 @@ class RPGGameBot:
             await query.edit_message_text("Неизвестное действие. Пожалуйста, попробуйте снова.")
             return
 
-        # Маппинг действий на промпты
-        action_prompts = {
-            "Атаковать": "combat",
-            "Торговать": "trading",
-            "Получить скиллы": "gain_skills",
-            "Положить в инвентарь": "add_to_inventory",
-            "Инвентарь": "inventory",
-            "Характеристики": "characteristics",
-            "Продолжить": "continue",
-            # Добавьте дополнительные действия по необходимости
-        }
+        # Добавляем действие в историю
+        context.user_data.setdefault('history', []).append(f"Игрок выбрал: {action_text}")
 
         # Обработка специальных действий
         if action_text == "Инвентарь":
@@ -63,29 +66,53 @@ class RPGGameBot:
             else:
                 inventory_items = "Ваш инвентарь пуст."
             await query.edit_message_text(f"Ваш инвентарь:\n{inventory_items}")
+            # Логирование события
+            self.command_handler.log_event(user_id=user_id, action=action_text, response="Просмотр инвентаря")
             return
 
         if action_text == "Характеристики":
             characteristics = self.command_handler.get_characteristics()
             await query.edit_message_text(f"{characteristics}")
+            # Логирование события
+            self.command_handler.log_event(user_id=user_id, action=action_text, response="Просмотр характеристик")
             return
 
         if action_text == "Продолжить":
             # Логика для продолжения игры
             prompt = self.command_handler.load_prompt("default")
-            chat_response = self.command_handler.fetch_chat_response("continue", prompt)
+            chat_response = self.command_handler.fetch_chat_response("Продолжить", prompt, context.user_data)
+
+            if not chat_response:
+                await query.edit_message_text(
+                    "Произошла ошибка при получении ответа от игрового мастера.",
+                )
+                # Логирование ошибки
+                self.command_handler.log_event(user_id=user_id, action="Продолжить", response="", error="Empty chat response")
+                return
+
             description, buttons, event_picture = self.command_handler.parse_response(chat_response, context.user_data)
             await query.edit_message_text(
                 f"{self.command_handler.get_characteristics()}\n\n{description}\n\n{event_picture}",
                 reply_markup=buttons
             )
+            # Логирование события
+            self.command_handler.log_event(user_id=user_id, action="Продолжить", response=description)
             return
 
-        # Для остальных действий загружаем промпт и идём в ChatGPT
-        prompt_key = action_prompts.get(action_text, "default")
+        # Для остальных действий отправляем действие как пользовательский ввод в ChatGPT
+        prompt_key = "default"  # Можно использовать другой подходящий промпт
         prompt = self.command_handler.load_prompt(prompt_key)
 
-        chat_response = self.command_handler.fetch_chat_response(action_text, prompt)
+        chat_response = self.command_handler.fetch_chat_response(action_text, prompt, context.user_data)
+
+        if not chat_response:
+            await query.edit_message_text(
+                "Произошла ошибка при получении ответа от игрового мастера.",
+            )
+            # Логирование ошибки
+            self.command_handler.log_event(user_id=user_id, action=action_text, response="", error="Empty chat response")
+            return
+
         description, buttons, event_picture = self.command_handler.parse_response(chat_response, context.user_data)
 
         # Отправляем ответ игроку с характеристиками, описанием и ASCII-артом
@@ -93,3 +120,5 @@ class RPGGameBot:
             f"{self.command_handler.get_characteristics()}\n\n{description}\n\n{event_picture}",
             reply_markup=buttons
         )
+        # Логирование события
+        self.command_handler.log_event(user_id=user_id, action=action_text, response=description)
