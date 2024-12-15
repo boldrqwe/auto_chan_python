@@ -9,13 +9,12 @@ from service.ChatGPTService import ChatGPTClient
 
 logger = logging.getLogger(__name__)
 
-
 class RPGGame:
     def __init__(self, bot):
         self.bot = bot
         self.players = {}  # {user_id: {...}}
         self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})
-        self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
+        self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.txt")
         self.user_custom_command = {}
         self.user_actions = {}  # {user_id: [action_list]}
 
@@ -26,8 +25,8 @@ class RPGGame:
             "Сразиться с бандой гоблинов на лесной тропе",
             "Изучить магическую башню",
             "Переплыть реку к затерянной деревне",
-            "Отправиться в горы за редким ингредиентом для зелья",
-            "Найти лекаря в ближайшей деревне, чтобы излечить раненого NPC",
+            "Отправиться в горы за редким ингредиентом",
+            "Найти лекаря для раненого NPC",
             "Выручить кузнеца, у которого украли инструменты",
             "Расспросить бармена о слухах",
             "Осмотреть заброшенную шахту",
@@ -73,6 +72,9 @@ class RPGGame:
         prompt_context = self.build_context(user_id)
         user_input = prompt_context + "\n" + additional_message
         response = await self.chat_gpt_client.generate_response(user_input=user_input)
+        if response is None:
+            await self.bot.send_message(user_id, "Произошла ошибка при генерации сцены. Попробуйте позже.")
+            return
         description, actions = self.parse_response(response)
 
         # Добавим одно случайное приключение (доп. вариант), если есть "Продолжить"
