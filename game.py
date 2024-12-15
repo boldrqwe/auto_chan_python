@@ -1,5 +1,6 @@
 import os
 import logging
+import random
 from collections import defaultdict
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
@@ -7,6 +8,7 @@ from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, Mes
 from service.ChatGPTService import ChatGPTClient
 
 logger = logging.getLogger(__name__)
+
 
 class RPGGame:
     def __init__(self, bot):
@@ -16,6 +18,29 @@ class RPGGame:
         self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
         self.user_custom_command = {}
         self.user_actions = {}  # {user_id: [action_list]}
+
+        self.adventures = [
+            "Найти пропавшего торговца",
+            "Отыскать древний амулет в руинах",
+            "Помочь местному фермеру защитить урожай от грызунов",
+            "Сразиться с бандой гоблинов на лесной тропе",
+            "Изучить магическую башню",
+            "Переплыть реку к затерянной деревне",
+            "Отправиться в горы за редким ингредиентом",
+            "Найти лекаря для раненого NPC",
+            "Выручить кузнеца, у которого украли инструменты",
+            "Расспросить бармена о слухах",
+            "Осмотреть заброшенную шахту",
+            "Переговорить с разбойниками",
+            "Исследовать пещеру со светящимися грибами",
+            "Помочь сторожевому посту отразить нападение",
+            "Сопроводить караван торговцев",
+            "Поговорить с мистической дриадой",
+            "Найти ученого, собирающего древние свитки",
+            "Выяснить причину пропажи рыбы в приозерной деревушке",
+            "Изучить заброшенное кладбище",
+            "Раскрыть заговор в королевском дворце"
+        ]
 
     async def start_game(self):
         logger.info("Игра инициализирована!")
@@ -49,6 +74,17 @@ class RPGGame:
         user_input = prompt_context + "\n" + additional_message
         response = await self.chat_gpt_client.generate_response(user_input=user_input)
         description, actions = self.parse_response(response)
+
+        # Добавим одно случайное приключение (дополнительный вариант), если возможно
+        # Только если "Продолжить" уже есть в списке (предполагаем, что значит, можно развивать сюжет)
+        if "Продолжить" in [a for a in actions]:
+            # Возьмём случайное приключение
+            adv = random.choice(self.adventures)
+            # Добавим его как дополнительный вариант
+            # Предварительно проверим, что его ещё нет в actions
+            if adv not in actions:
+                actions.append(adv)
+
         await self.send_scenario(user_id, description, actions)
 
     def build_context(self, user_id):
@@ -89,7 +125,7 @@ class RPGGame:
         end_idx = text.find(end_tag)
         if start_idx == -1 or end_idx == -1:
             return ""
-        return text[start_idx+len(start_tag):end_idx].strip()
+        return text[start_idx + len(start_tag):end_idx].strip()
 
     def parse_actions(self, actions_text: str):
         if not actions_text:
@@ -102,7 +138,7 @@ class RPGGame:
         return actions
 
     async def send_scenario(self, user_id, description: str, actions: list):
-        # Добавим характеристики к описанию
+        # Добавим характеристики
         player = self.players.get(user_id)
         if player:
             stats = player['stats']
@@ -116,20 +152,36 @@ class RPGGame:
             )
             description += char_info
 
+        # Добавим ASCII-арт (например, дерево или костёр)
+        # Можно сделать рандомный выбор. Допустим дерево:
+        ascii_art = (
+            "```\n"
+            "   /\\\n"
+            "  {  `---'  }\n"
+            "  {  O   O  }\n"
+            "  ~~>  V  <~~\n"
+            "   \\  \\|/  /\n"
+            "    `-----'\n"
+            "     | |   \n"
+            "     | |   \n"
+            "     XXX   \n"
+            "    /   \\  \n"
+            "```"
+        )
+        description += "\n\n" + ascii_art
+
         if not actions:
             actions = ["Продолжить"]
 
-        # Сохраним варианты действий для этого пользователя
         self.user_actions[user_id] = actions
 
-        # Создадим кнопки с индексами вместо полного текста
         keyboard = []
         for i, action in enumerate(actions):
             callback_data = f"act_{i}"
-            # callback_data должно быть коротким и без пробелов/переносов
             keyboard.append([InlineKeyboardButton(action, callback_data=callback_data)])
 
-        await self.bot.send_message(user_id, description, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        await self.bot.send_message(user_id, description, parse_mode="Markdown",
+                                    reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def process_choice(self, user_id, choice: str):
         logger.info(f"Пользователь {user_id} выбрал действие: {choice}")
@@ -137,7 +189,6 @@ class RPGGame:
         lower_choice = choice.lower()
 
         if lower_choice.startswith("действие"):
-            # Произвольная команда
             self.user_custom_command[user_id] = None
             await self.bot.send_message(user_id, "Введите произвольную команду:")
             return
@@ -177,7 +228,6 @@ class RPGGame:
         await query.answer()
 
         if data.startswith("act_"):
-            # Получаем индекс действия
             idx_str = data[len("act_"):]
             if idx_str.isdigit():
                 idx = int(idx_str)
@@ -217,5 +267,4 @@ class RPGGame:
         application.add_handler(CallbackQueryHandler(self.handle_callback_query))
         application.add_handler(MessageHandler(filters.COMMAND, self.unknown_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-
 
