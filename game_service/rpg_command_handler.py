@@ -23,6 +23,17 @@ class RPGGameCommandHandler:
         }
         self.item_pool = {}  # Словарь для хранения предметов
 
+    @staticmethod
+    def parse_json(input_str: str):
+        """Парсит JSON из строки."""
+        try:
+            escaped_str = input_str.strip()
+            parsed_json = json.loads(escaped_str)
+            return parsed_json
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON: {e}")
+            return None
+
     def load_prompt(self, action: str) -> str:
         """
         Загружает промпт из файла на основе действия.
@@ -63,67 +74,60 @@ class RPGGameCommandHandler:
         try:
             response = requests.post(self.BASE_CHATGPT_URL, json=payload, timeout=10)
             response.raise_for_status()
-            data = response.json()
+            raw_response = response.text
 
-            # Логгирование ответа для отладки
-            print("ChatGPT Response:", json.dumps(data, ensure_ascii=False, indent=2))
+            # Используем parse_json для обработки строки JSON
+            parsed_response = self.parse_json(raw_response)
 
-            # Проверка наличия и типа нужных ключей
-            if not isinstance(data, dict):
-                return {
-                    "description": "Ответ некорректен. Попробуйте снова.",
-                    "actions": ["Продолжить"],
-                    "event_picture": ""
-                }
-
-            if "description" not in data or not isinstance(data["description"], str):
-                return {
-                    "description": "Ответ некорректен. Попробуйте снова.",
-                    "actions": ["Продолжить"],
-                    "event_picture": ""
-                }
-
-            if "actions" not in data or not isinstance(data["actions"], list) or not all(isinstance(action, str) for action in data["actions"]):
-                return {
-                    "description": "Ответ некорректен. Попробуйте снова.",
-                    "actions": ["Продолжить"],
-                    "event_picture": ""
-                }
-
-            if "event_picture" not in data or not isinstance(data["event_picture"], str):
-                return {
-                    "description": "Ответ некорректен. Попробуйте снова.",
-                    "actions": ["Продолжить"],
-                    "event_picture": ""
-                }
-
-            return data
+            if parsed_response:
+                print("ChatGPT Response:", json.dumps(parsed_response, ensure_ascii=False, indent=2))
+                return parsed_response.get("response", {})
+            else:
+                return self.default_answer()
         except (requests.RequestException, ValueError) as e:
             print(f"Error during request: {e}")
-            return {
-                "description": "Ошибка при обращении к ChatGPT. Проверьте подключение к интернету.",
-                "actions": ["Попробовать снова"],
-                "event_picture": ""
-            }
+            return self.default_answer()
 
-    def parse_response(self, chat_response: dict) -> (str, InlineKeyboardMarkup, str):
+    def default_answer(self):
+        return {
+            "description": "Ответ некорректен. Попробуйте снова.",
+            "actions": ["Продолжить"],
+            "event_picture": ""
+        }
+
+    def parse_response(self, chat_response: str, user_data: dict) -> (str, InlineKeyboardMarkup, str):
         """
         Парсит ответ ChatGPT и возвращает описание, кнопки и ASCII-арт.
+        Также генерирует уникальные callback_data для кнопок и сохраняет их в user_data.
         """
-        description = chat_response.get("description", "Произошла ошибка.")
-        actions = chat_response.get("actions", ["Продолжить"])
-        event_picture = chat_response.get("event_picture", "")
+        parsed_response = self.parse_json(chat_response)
 
-        if not actions:  # Защита от пустого списка
+        if not parsed_response or not isinstance(parsed_response, dict):
+            return (
+                "Произошла ошибка при обработке ответа. Попробуйте снова.",
+                InlineKeyboardMarkup([[InlineKeyboardButton("Продолжить", callback_data="continue")]]),
+                ""
+            )
+
+        description = parsed_response.get("description", "Произошла ошибка.")
+        actions = parsed_response.get("actions", ["Продолжить"])
+        event_picture = parsed_response.get("event_picture", "")
+
+        if not isinstance(actions, list) or not all(isinstance(action, str) for action in actions):
             actions = ["Продолжить"]
 
-        # Создание кнопок для действий
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton(action, callback_data=action)] for action in actions
-        ])
+        # Генерируем уникальные идентификаторы для действий
+        action_mapping = {}
+        buttons = []
+        for idx, action in enumerate(actions):
+            action_id = f"action_{idx}"
+            action_mapping[action_id] = action
+            buttons.append([InlineKeyboardButton(action, callback_data=action_id)])
 
-        return description, buttons, event_picture
+        # Сохраняем сопоставление действий в user_data
+        user_data['action_mapping'] = action_mapping
 
+        return description, InlineKeyboardMarkup(buttons), event_picture
 
     def add_experience(self, amount: int):
         """Добавляет опыт и проверяет повышение уровня."""
