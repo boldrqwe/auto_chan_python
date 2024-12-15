@@ -15,10 +15,18 @@ class RPGGame:
         self.user_custom_command = {}
         self.user_actions = {}  # {user_id: [action_list]}
 
+    async def generate_response(self, user_input: str):
+        """Вызов модели ChatGPT для генерации ответа."""
+        # Здесь предполагается, что вы уже настроили chat_gpt_client где-то ещё
+        from service.ChatGPTService import ChatGPTClient
+
+        chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
+        return await chat_gpt_client.generate_response(user_input=user_input)
+
     async def update_scene(self, user_id, additional_message: str):
         prompt_context = self.build_context(user_id)
         user_input = prompt_context + "\n" + additional_message
-        response = await self.chat_gpt_client.generate_response(user_input=user_input)
+        response = await self.generate_response(user_input=user_input)
         description, actions = self.parse_response(response)
         await self.send_scenario(user_id, description, actions)
 
