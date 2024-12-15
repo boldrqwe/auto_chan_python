@@ -14,8 +14,6 @@ class RPGGame:
         self.players = {}  # {user_id: {...}}
         self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})
         self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
-
-        # Произвольная команда игрока {user_id: str or None}
         self.user_custom_command = {}
 
     async def start_game(self):
@@ -46,7 +44,6 @@ class RPGGame:
         await self.update_scene(user_id, "Игрок только что начал игру, он выбрал имя.")
 
     async def update_scene(self, user_id, additional_message: str):
-        # Формируем контекст для GPT
         prompt_context = self.build_context(user_id)
         user_input = prompt_context + "\n" + additional_message
         response = await self.chat_gpt_client.generate_response(user_input=user_input)
@@ -110,13 +107,42 @@ class RPGGame:
         await self.bot.send_message(user_id, description, reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def process_choice(self, user_id, choice: str):
-        # Если выбрана "Действие" (Произвольная команда)
-        if choice.lower().startswith("действие"):
+        logger.info(f"Пользователь {user_id} выбрал действие: {choice}")
+
+        lower_choice = choice.lower()
+
+        if lower_choice.startswith("действие"):
+            # Произвольная команда
             self.user_custom_command[user_id] = None
             await self.bot.send_message(user_id, "Введите произвольную команду:")
             return
+        elif lower_choice == "инвентарь":
+            # Показываем инвентарь сразу или обновляем сцену
+            # Здесь можно просто вывести текущее содержимое инвентаря:
+            inv = self.players[user_id]["inventory"]
+            inv_text = "Инвентарь пуст." if not inv else "Инвентарь: " + ", ".join(inv)
+            # Можно напрямую отправить сообщение или снова обратиться к ChatGPT для красивого описания
+            await self.update_scene(user_id, f"Игрок просматривает инвентарь: {inv_text}")
+            return
+        elif lower_choice == "характеристики":
+            # Аналогично для характеристик
+            player = self.players[user_id]
+            stats = player["stats"]
+            char_text = (
+                f"Имя: {player['name']}\n"
+                f"Класс: {player['class']}\n"
+                f"Здоровье: {stats['health']}\n"
+                f"Стамина: {stats['stamina']}\n"
+                f"Магия: {stats['magic']}\n"
+                f"Сила: {stats['strength']}\n"
+                f"Ловкость: {stats['agility']}\n"
+                f"Интеллект: {stats['intelligence']}\n"
+                f"Харизма: {stats['charisma']}"
+            )
+            await self.update_scene(user_id, f"Игрок просматривает характеристики:\n{char_text}")
+            return
         else:
-            # Обновляем сцену
+            # Для всех остальных вариантов просто обновляем сцену через ChatGPT
             await self.update_scene(user_id, f"Игрок выбрал действие: {choice}. Опиши, что происходит дальше.")
 
     async def handle_custom_command(self, user_id, text):
@@ -135,9 +161,7 @@ class RPGGame:
 
     async def start_game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
-        # Предлагаем игроку ввести имя
         await self.bot.send_message(user_id, "Введите имя вашего персонажа:")
-        # Следующее сообщение будет обработано в handle_message
 
     async def unknown_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Неизвестная команда. Используйте /startgame для начала.")
@@ -146,9 +170,8 @@ class RPGGame:
         user_id = update.effective_user.id
         text = update.message.text.strip()
 
-        # Если игрок ещё не существует и мы ждали имя
         if user_id not in self.players:
-            # Считаем, что это ввод имени
+            # Ввод имени игрока
             await self.add_player(user_id, text)
             return
 
@@ -163,3 +186,4 @@ class RPGGame:
         application.add_handler(CallbackQueryHandler(self.handle_callback_query))
         application.add_handler(MessageHandler(filters.COMMAND, self.unknown_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+
