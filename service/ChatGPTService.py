@@ -54,24 +54,3 @@ class ChatGPTClient:
         except Exception as e:
             logger.exception(f"Ошибка при запросе к OpenAI API: {e}")
             raise HTTPException(status_code=500, detail="Произошла ошибка при генерации ответа.")
-
-# Инициализация FastAPI
-app = FastAPI()
-chat_client = ChatGPTClient()
-
-# Эндпоинт для получения ответа от ChatGPT
-@app.post("/chat")
-async def chat(user_input: UserInput):
-    """
-    Эндпоинт для общения с ChatGPT.
-    Ожидает JSON с полем `user_input`.
-    """
-    try:
-        response = await chat_client.generate_response(user_input.user_input)
-        return {"response": response}
-    except HTTPException as e:
-        logger.error(f"HTTP Exception: {e.detail}")
-        raise e
-    except Exception as e:
-        logger.exception(f"Unhandled Exception: {e}")
-        raise HTTPException(status_code=500, detail="Непредвиденная ошибка на сервере.")
