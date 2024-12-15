@@ -1,14 +1,15 @@
 import os
 import requests
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-
+import json
 
 class RPGGameCommandHandler:
     """Класс для обработки команд и взаимодействия с ChatGPT."""
     BASE_CHATGPT_URL = "https://autochanpython-production.up.railway.app/chat"
 
     def __init__(self):
-        self.prompts_path = "prompts"  # Путь к папке с файлами промптов
+        # Устанавливаем абсолютный путь к папке с промптами
+        self.prompts_path = os.path.join(os.path.dirname(__file__), "prompts")
         self.character = {
             "name": "Игрок",
             "class": "Воин",
@@ -28,24 +29,32 @@ class RPGGameCommandHandler:
         :param action: Действие игрока (ключ).
         :return: Текст промпта или основной промпт по умолчанию.
         """
-        filename = f"{action}.txt"
+        filename = f"{action}.txt"  # Только имя файла без пути
         filepath = os.path.join(self.prompts_path, filename)
+        print(f"Loading prompt from: {filepath}")  # Отладка
         try:
             with open(filepath, "r", encoding="utf-8") as file:
-                return file.read().strip()
+                content = file.read().strip()
+                print(f"Prompt content:\n{content}")  # Отладка
+                return content
         except FileNotFoundError:
+            print(f"Prompt file {filename} not found. Falling back to default prompt.")
             return self.load_default_prompt()
 
     def load_default_prompt(self) -> str:
         """
         Загружает основной промпт по умолчанию.
         """
+        default_filename = "default.txt"
+        default_filepath = os.path.join(self.prompts_path, default_filename)
+        print(f"Loading default prompt from: {default_filepath}")  # Отладка
         try:
-            base_dir = os.path.dirname(__file__)  # Путь к текущей папке
-            filepath = os.path.join(base_dir, "prompts", "prompt.txt")
-            with open(filepath, "r", encoding="utf-8") as file:
-                return file.read()
+            with open(default_filepath, "r", encoding="utf-8") as file:
+                content = file.read().strip()
+                print(f"Default prompt content:\n{content}")  # Отладка
+                return content
         except FileNotFoundError:
+            print(f"Default prompt file {default_filename} not found.")
             return "Добро пожаловать в игру! Ваше приключение начинается здесь."
 
     def fetch_chat_response(self, player_message: str, prompt: str) -> dict:
@@ -56,15 +65,41 @@ class RPGGameCommandHandler:
             response.raise_for_status()
             data = response.json()
 
-            # Проверка на наличие нужных ключей в ответе
-            if "description" not in data or "actions" not in data or "event_picture" not in data:
+            # Логгирование ответа для отладки
+            print("ChatGPT Response:", json.dumps(data, ensure_ascii=False, indent=2))
+
+            # Проверка наличия и типа нужных ключей
+            if not isinstance(data, dict):
                 return {
                     "description": "Ответ некорректен. Попробуйте снова.",
                     "actions": ["Продолжить"],
                     "event_picture": ""
                 }
+
+            if "description" not in data or not isinstance(data["description"], str):
+                return {
+                    "description": "Ответ некорректен. Попробуйте снова.",
+                    "actions": ["Продолжить"],
+                    "event_picture": ""
+                }
+
+            if "actions" not in data or not isinstance(data["actions"], list) or not all(isinstance(action, str) for action in data["actions"]):
+                return {
+                    "description": "Ответ некорректен. Попробуйте снова.",
+                    "actions": ["Продолжить"],
+                    "event_picture": ""
+                }
+
+            if "event_picture" not in data or not isinstance(data["event_picture"], str):
+                return {
+                    "description": "Ответ некорректен. Попробуйте снова.",
+                    "actions": ["Продолжить"],
+                    "event_picture": ""
+                }
+
             return data
-        except (requests.RequestException, ValueError):
+        except (requests.RequestException, ValueError) as e:
+            print(f"Error during request: {e}")
             return {
                 "description": "Ошибка при обращении к ChatGPT. Проверьте подключение к интернету.",
                 "actions": ["Попробовать снова"],

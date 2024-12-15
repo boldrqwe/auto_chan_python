@@ -16,11 +16,13 @@ class RPGGameBot:
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает команду /start."""
         characteristics = self.command_handler.get_characteristics()
-        description, buttons = self.command_handler.parse_response({
-            "description": "Добро пожаловать в мир приключений! Выберите действие:",
-            "actions": ["Начать приключение", "Посмотреть характеристики"]
-        })
-        await update.message.reply_text(f"{characteristics}\n\n{description}", reply_markup=buttons)
+        # Загрузка промпта для начального состояния
+        prompt = self.command_handler.load_prompt("default")
+        chat_response = self.command_handler.fetch_chat_response("start", prompt)
+
+        description, buttons, event_picture = self.command_handler.parse_response(chat_response)
+        # Отправляем сообщение с характеристиками, описанием и ASCII-артом
+        await update.message.reply_text(f"{characteristics}\n\n{description}\n\n{event_picture}", reply_markup=buttons)
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает нажатия на кнопки (CallbackQuery)."""
@@ -58,11 +60,8 @@ class RPGGameBot:
         prompt = self.command_handler.load_prompt(prompt_key)
 
         chat_response = self.command_handler.fetch_chat_response(player_message, prompt)
-        description, buttons = self.command_handler.parse_response(chat_response)
+        description, buttons, event_picture = self.command_handler.parse_response(chat_response)
 
-        # Отправляем ответ игроку
-        await query.edit_message_text(f"{self.command_handler.get_characteristics()}\n\n{description}",
+        # Отправляем ответ игроку с характеристиками, описанием и ASCII-артом
+        await query.edit_message_text(f"{self.command_handler.get_characteristics()}\n\n{description}\n\n{event_picture}",
                                       reply_markup=buttons)
-
-
-
