@@ -1,40 +1,46 @@
 import logging
 import os
-
 import aiohttp
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Модель для валидации входящих данных
+# FastAPI приложение
+app = FastAPI()
+
+# Модель для входящих данных
 class UserInput(BaseModel):
-    user_input: str
+    player_message: str  # Сообщение от игрока
+    prompt: str          # Контекст (промпт) для ChatGPT
 
 # Класс для взаимодействия с OpenAI API
 class ChatGPTClient:
     def __init__(self):
         self.api_key = os.environ.get("OPENAI_API_KEY")
-        self.prompt_file = "prompt.md"
-        try:
-            with open(self.prompt_file, 'r', encoding='utf-8') as f:
-                self.prompt = f.read()
-        except FileNotFoundError:
-            logger.error(f"Файл промпта '{self.prompt_file}' не найден.")
-            self.prompt = ""
+        if not self.api_key:
+            raise ValueError("Переменная окружения OPENAI_API_KEY не задана!")
 
-    async def generate_response(self, user_input=None):
+    async def generate_response(self, player_message: str, prompt: str):
+        """
+        Генерация ответа на основе промпта и сообщения игрока.
+        :param player_message: Сообщение от игрока.
+        :param prompt: Промпт, задающий контекст.
+        :return: Ответ от OpenAI.
+        """
         url = "https://api.openai.com/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
 
-        messages = [{"role": "system", "content": self.prompt}]
-        if user_input:
-            messages.append({"role": "user", "content": user_input})
+        # Формируем список сообщений для ChatGPT
+        messages = [
+            {"role": "system", "content": prompt},  # Промпт от системы
+            {"role": "user", "content": player_message}  # Сообщение от игрока
+        ]
 
         data = {
             "model": "gpt-3.5-turbo",
@@ -43,6 +49,7 @@ class ChatGPTClient:
             "temperature": 0.7
         }
 
+        # Запрос к API OpenAI
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=data) as resp:

@@ -42,7 +42,6 @@ bot: Bot = application.bot
 
 # Инициализация сервисов и ресурсов
 dvach = DvachService()
-chat_gpt_client = ChatGPTClient()
 posted_media = set()
 media_queue = asyncio.Queue()
 
