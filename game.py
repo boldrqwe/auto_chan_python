@@ -15,6 +15,7 @@ class RPGGame:
         self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})
         self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
         self.user_custom_command = {}
+        self.user_actions = {}  # {user_id: [action_list]}
 
     async def start_game(self):
         logger.info("Игра инициализирована!")
@@ -101,10 +102,34 @@ class RPGGame:
         return actions
 
     async def send_scenario(self, user_id, description: str, actions: list):
+        # Добавим характеристики к описанию
+        player = self.players.get(user_id)
+        if player:
+            stats = player['stats']
+            char_info = (
+                f"\n\n**Характеристики:**\n"
+                f"Имя: {player['name']}\n"
+                f"Класс: {player['class']}\n"
+                f"Здоровье: {stats['health']}\n"
+                f"Стамина: {stats['stamina']}\n"
+                f"Магия: {stats['magic']}"
+            )
+            description += char_info
+
         if not actions:
             actions = ["Продолжить"]
-        keyboard = [[InlineKeyboardButton(a, callback_data=f"choice_{a}")] for a in actions]
-        await self.bot.send_message(user_id, description, reply_markup=InlineKeyboardMarkup(keyboard))
+
+        # Сохраним варианты действий для этого пользователя
+        self.user_actions[user_id] = actions
+
+        # Создадим кнопки с индексами вместо полного текста
+        keyboard = []
+        for i, action in enumerate(actions):
+            callback_data = f"act_{i}"
+            # callback_data должно быть коротким и без пробелов/переносов
+            keyboard.append([InlineKeyboardButton(action, callback_data=callback_data)])
+
+        await self.bot.send_message(user_id, description, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def process_choice(self, user_id, choice: str):
         logger.info(f"Пользователь {user_id} выбрал действие: {choice}")
@@ -117,15 +142,11 @@ class RPGGame:
             await self.bot.send_message(user_id, "Введите произвольную команду:")
             return
         elif lower_choice == "инвентарь":
-            # Показываем инвентарь сразу или обновляем сцену
-            # Здесь можно просто вывести текущее содержимое инвентаря:
             inv = self.players[user_id]["inventory"]
             inv_text = "Инвентарь пуст." if not inv else "Инвентарь: " + ", ".join(inv)
-            # Можно напрямую отправить сообщение или снова обратиться к ChatGPT для красивого описания
             await self.update_scene(user_id, f"Игрок просматривает инвентарь: {inv_text}")
             return
         elif lower_choice == "характеристики":
-            # Аналогично для характеристик
             player = self.players[user_id]
             stats = player["stats"]
             char_text = (
@@ -142,7 +163,7 @@ class RPGGame:
             await self.update_scene(user_id, f"Игрок просматривает характеристики:\n{char_text}")
             return
         else:
-            # Для всех остальных вариантов просто обновляем сцену через ChatGPT
+            # Обновляем сцену через ChatGPT
             await self.update_scene(user_id, f"Игрок выбрал действие: {choice}. Опиши, что происходит дальше.")
 
     async def handle_custom_command(self, user_id, text):
@@ -155,9 +176,19 @@ class RPGGame:
         data = query.data
         await query.answer()
 
-        if data.startswith("choice_"):
-            choice = data[len("choice_"):].strip()
-            await self.process_choice(user_id, choice)
+        if data.startswith("act_"):
+            # Получаем индекс действия
+            idx_str = data[len("act_"):]
+            if idx_str.isdigit():
+                idx = int(idx_str)
+                actions = self.user_actions.get(user_id, [])
+                if 0 <= idx < len(actions):
+                    choice = actions[idx]
+                    await self.process_choice(user_id, choice)
+                else:
+                    await self.bot.send_message(user_id, "Некорректный индекс действия.")
+            else:
+                await self.bot.send_message(user_id, "Некорректные данные кнопки.")
 
     async def start_game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
