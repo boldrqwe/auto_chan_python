@@ -26,8 +26,8 @@ class RPGGame:
             "Сразиться с бандой гоблинов на лесной тропе",
             "Изучить магическую башню",
             "Переплыть реку к затерянной деревне",
-            "Отправиться в горы за редким ингредиентом",
-            "Найти лекаря для раненого NPC",
+            "Отправиться в горы за редким ингредиентом для зелья",
+            "Найти лекаря в ближайшей деревне, чтобы излечить раненого NPC",
             "Выручить кузнеца, у которого украли инструменты",
             "Расспросить бармена о слухах",
             "Осмотреть заброшенную шахту",
@@ -75,13 +75,9 @@ class RPGGame:
         response = await self.chat_gpt_client.generate_response(user_input=user_input)
         description, actions = self.parse_response(response)
 
-        # Добавим одно случайное приключение (дополнительный вариант), если возможно
-        # Только если "Продолжить" уже есть в списке (предполагаем, что значит, можно развивать сюжет)
-        if "Продолжить" in [a for a in actions]:
-            # Возьмём случайное приключение
+        # Добавим одно случайное приключение (доп. вариант), если есть "Продолжить"
+        if "Продолжить" in actions:
             adv = random.choice(self.adventures)
-            # Добавим его как дополнительный вариант
-            # Предварительно проверим, что его ещё нет в actions
             if adv not in actions:
                 actions.append(adv)
 
@@ -138,7 +134,7 @@ class RPGGame:
         return actions
 
     async def send_scenario(self, user_id, description: str, actions: list):
-        # Добавим характеристики
+        # Добавим характеристики (как и раньше)
         player = self.players.get(user_id)
         if player:
             stats = player['stats']
@@ -152,23 +148,8 @@ class RPGGame:
             )
             description += char_info
 
-        # Добавим ASCII-арт (например, дерево или костёр)
-        # Можно сделать рандомный выбор. Допустим дерево:
-        ascii_art = (
-            "```\n"
-            "   /\\\n"
-            "  {  `---'  }\n"
-            "  {  O   O  }\n"
-            "  ~~>  V  <~~\n"
-            "   \\  \\|/  /\n"
-            "    `-----'\n"
-            "     | |   \n"
-            "     | |   \n"
-            "     XXX   \n"
-            "    /   \\  \n"
-            "```"
-        )
-        description += "\n\n" + ascii_art
+        # Не добавляем ASCII-арт от себя — доверяем модели
+        # Модель уже должна сгенерировать ASCII-арт внутри [DESCRIPTION], если считает нужным.
 
         if not actions:
             actions = ["Продолжить"]
@@ -185,7 +166,6 @@ class RPGGame:
 
     async def process_choice(self, user_id, choice: str):
         logger.info(f"Пользователь {user_id} выбрал действие: {choice}")
-
         lower_choice = choice.lower()
 
         if lower_choice.startswith("действие"):
@@ -214,7 +194,6 @@ class RPGGame:
             await self.update_scene(user_id, f"Игрок просматривает характеристики:\n{char_text}")
             return
         else:
-            # Обновляем сцену через ChatGPT
             await self.update_scene(user_id, f"Игрок выбрал действие: {choice}. Опиши, что происходит дальше.")
 
     async def handle_custom_command(self, user_id, text):
@@ -256,7 +235,6 @@ class RPGGame:
             await self.add_player(user_id, text)
             return
 
-        # Если ждём произвольную команду
         if user_id in self.players and self.user_custom_command.get(user_id, "not_set") is None:
             await self.handle_custom_command(user_id, text)
         else:
@@ -267,4 +245,3 @@ class RPGGame:
         application.add_handler(CallbackQueryHandler(self.handle_callback_query))
         application.add_handler(MessageHandler(filters.COMMAND, self.unknown_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-

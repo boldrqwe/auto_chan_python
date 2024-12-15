@@ -28,7 +28,7 @@ class ChatGPTClient:
             messages.append({"role": "user", "content": user_input})
 
         data = {
-            "model": "gpt-4",
+            "model": "gpt-3.5 turbo",
             "messages": messages,
             "max_tokens": 500,
             "temperature": 0.7
