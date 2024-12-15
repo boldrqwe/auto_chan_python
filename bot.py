@@ -43,13 +43,13 @@ bot: Bot = application.bot
 
 # Инициализация сервисов и ресурсов
 dvach = DvachService()
-chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.md")
+chat_gpt_client = ChatGPTClient()
 posted_media = set()
 media_queue = asyncio.Queue()
 
-# Инициализация игры
-game = RPGGame(bot)
-game.register_handlers(application)
+# # Инициализация игры
+# game = RPGGame(bot)
+# game.register_handlers(application)
 
 async def send_anecdotes_task(bot, chat_gpt_client, channel_id):
     """Фоновая задача отправки анекдотов в указанный канал."""

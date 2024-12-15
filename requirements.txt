@@ -10,3 +10,6 @@ Requests
 tensorflow-cpu
 aiogram
 python-dotenv
+fastapi
+uvicorn
+honcho

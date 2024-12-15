@@ -1,19 +1,27 @@
-
 import aiohttp
 import os
 import logging
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Модель для валидации входящих данных
+class UserInput(BaseModel):
+    user_input: str
+
+# Класс для взаимодействия с OpenAI API
 class ChatGPTClient:
-    def __init__(self, api_key, prompt_file):
-        self.api_key = api_key
-        self.prompt_file = prompt_file
+    def __init__(self):
+        self.api_key = os.environ.get("OPENAI_API_KEY")
+        self.prompt_file = "prompt.md"
         try:
-            with open(prompt_file, 'r', encoding='utf-8') as f:
+            with open(self.prompt_file, 'r', encoding='utf-8') as f:
                 self.prompt = f.read()
         except FileNotFoundError:
-            logger.error(f"Файл промпта '{prompt_file}' не найден.")
+            logger.error(f"Файл промпта '{self.prompt_file}' не найден.")
             self.prompt = ""
 
     async def generate_response(self, user_input=None):
@@ -28,7 +36,7 @@ class ChatGPTClient:
             messages.append({"role": "user", "content": user_input})
 
         data = {
-            "model": "gpt-3.5-turbo",  # Исправленное название модели
+            "model": "gpt-3.5-turbo",
             "messages": messages,
             "max_tokens": 1000,
             "temperature": 0.7
@@ -40,9 +48,30 @@ class ChatGPTClient:
                     if resp.status != 200:
                         error = await resp.text()
                         logger.error(f"API запрос не удался: {resp.status} {error}")
-                        raise Exception(f"API запрос не удался: {resp.status}")
+                        raise HTTPException(status_code=resp.status, detail="Ошибка при запросе к OpenAI API")
                     result = await resp.json()
                     return result['choices'][0]['message']['content'].strip()
         except Exception as e:
             logger.exception(f"Ошибка при запросе к OpenAI API: {e}")
-            return "Произошла ошибка при генерации ответа."
+            raise HTTPException(status_code=500, detail="Произошла ошибка при генерации ответа.")
+
+# Инициализация FastAPI
+app = FastAPI()
+chat_client = ChatGPTClient()
+
+# Эндпоинт для получения ответа от ChatGPT
+@app.post("/chat")
+async def chat(user_input: UserInput):
+    """
+    Эндпоинт для общения с ChatGPT.
+    Ожидает JSON с полем `user_input`.
+    """
+    try:
+        response = await chat_client.generate_response(user_input.user_input)
+        return {"response": response}
+    except HTTPException as e:
+        logger.error(f"HTTP Exception: {e.detail}")
+        raise e
+    except Exception as e:
+        logger.exception(f"Unhandled Exception: {e}")
+        raise HTTPException(status_code=500, detail="Непредвиденная ошибка на сервере.")
