@@ -1,7 +1,8 @@
-import aiohttp
-import os
 import logging
-from fastapi import FastAPI, HTTPException
+import os
+
+import aiohttp
+from fastapi import HTTPException
 from pydantic import BaseModel
 
 # Настройка логирования

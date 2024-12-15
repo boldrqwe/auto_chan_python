@@ -2,18 +2,16 @@
 import asyncio
 import logging
 import os
-import re
 
 from telegram import Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram.error import TelegramError
+from telegram.ext import ApplicationBuilder
 
-from game import RPGGame
+from service.ChatGPTService import ChatGPTClient
 from service.dvach_service import DvachService
 from service.media_poster import post_media_from_queue
-from utils.media_utils import check_chat_access
 from service.tasks import job_collect_media
-from telegram.error import TelegramError
-from service.ChatGPTService import ChatGPTClient
+from utils.media_utils import check_chat_access
 
 # Настройка логирования
 logging.basicConfig(
@@ -35,7 +33,8 @@ required_vars = ["BOT_TOKEN", "TELEGRAM_CHANNEL_ID"]
 missing = [var for var in required_vars if not globals().get(var)]
 if missing:
     raise ValueError(f"Не заданы переменные окружения: {', '.join(missing)}")
-logger.info(", ".join(f"{var}: {globals().get(var)}" for var in required_vars + ["POST_INTERVAL", "FETCH_BATCH_SIZE", "FETCH_DELAY"]))
+logger.info(", ".join(
+    f"{var}: {globals().get(var)}" for var in required_vars + ["POST_INTERVAL", "FETCH_BATCH_SIZE", "FETCH_DELAY"]))
 
 # Создаем приложение
 application = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -46,6 +45,7 @@ dvach = DvachService()
 chat_gpt_client = ChatGPTClient()
 posted_media = set()
 media_queue = asyncio.Queue()
+
 
 # # Инициализация игры
 # game = RPGGame(bot)
@@ -67,6 +67,7 @@ async def send_anecdotes_task(bot, chat_gpt_client, channel_id):
             logger.error(f"Ошибка при генерации анекдота: {e}")
         await asyncio.sleep(345)  # Ждём 345 секунд перед следующим анекдотом
 
+
 async def media_collector_task(dvach, posted_media, media_queue, fetch_batch_size, fetch_delay):
     """Фоновая задача по сбору медиа с 2ch."""
     while True:
@@ -76,6 +77,7 @@ async def media_collector_task(dvach, posted_media, media_queue, fetch_batch_siz
         logger.info(f"Количество элементов в очереди: {media_queue.qsize()}")
         await asyncio.sleep(fetch_delay)
 
+
 async def post_init(application):
     """Функция, вызываемая после инициализации приложения, перед запуском поллинга."""
     await check_chat_access(bot, TELEGRAM_CHANNEL_ID)
@@ -84,6 +86,7 @@ async def post_init(application):
     application.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
     application.create_task(media_collector_task(dvach, posted_media, media_queue, FETCH_BATCH_SIZE, FETCH_DELAY))
     logger.info("Бот инициализирован и фоновые задачи запущены.")
+
 
 # Назначаем post_init коллбек
 application.post_init = post_init
