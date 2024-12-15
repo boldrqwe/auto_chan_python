@@ -5,8 +5,6 @@ from collections import defaultdict
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
-from service.ChatGPTService import ChatGPTClient
-
 logger = logging.getLogger(__name__)
 
 class RPGGame:
@@ -14,75 +12,14 @@ class RPGGame:
         self.bot = bot
         self.players = {}  # {user_id: {...}}
         self.world_state = defaultdict(lambda: {"gold": 0, "resources": {}})
-        self.chat_gpt_client = ChatGPTClient(api_key=os.environ.get("OPENAI_API_KEY"), prompt_file="prompt.txt")
         self.user_custom_command = {}
         self.user_actions = {}  # {user_id: [action_list]}
-
-        self.adventures = [
-            "Найти пропавшего торговца",
-            "Отыскать древний амулет в руинах",
-            "Помочь местному фермеру защитить урожай от грызунов",
-            "Сразиться с бандой гоблинов на лесной тропе",
-            "Изучить магическую башню",
-            "Переплыть реку к затерянной деревне",
-            "Отправиться в горы за редким ингредиентом",
-            "Найти лекаря для раненого NPC",
-            "Выручить кузнеца, у которого украли инструменты",
-            "Расспросить бармена о слухах",
-            "Осмотреть заброшенную шахту",
-            "Переговорить с разбойниками",
-            "Исследовать пещеру со светящимися грибами",
-            "Помочь сторожевому посту отразить нападение",
-            "Сопроводить караван торговцев",
-            "Поговорить с мистической дриадой",
-            "Найти ученого, собирающего древние свитки",
-            "Выяснить причину пропажи рыбы в приозерной деревушке",
-            "Изучить заброшенное кладбище",
-            "Раскрыть заговор в королевском дворце"
-        ]
-
-    async def start_game(self):
-        logger.info("Игра инициализирована!")
-
-    async def add_player(self, user_id, player_name):
-        if user_id in self.players:
-            await self.bot.send_message(user_id, "Вы уже добавлены в игру.")
-            return
-
-        self.players[user_id] = {
-            "name": player_name,
-            "class": "Новичок",
-            "stats": {
-                "strength": 5,
-                "agility": 5,
-                "intelligence": 5,
-                "charisma": 5,
-                "health": 100,
-                "stamina": 50,
-                "magic": 10
-            },
-            "inventory": []
-        }
-        self.world_state[user_id] = {"gold": 0, "resources": {}}
-        self.user_custom_command[user_id] = None
-
-        await self.update_scene(user_id, "Игрок только что начал игру, он выбрал имя.")
 
     async def update_scene(self, user_id, additional_message: str):
         prompt_context = self.build_context(user_id)
         user_input = prompt_context + "\n" + additional_message
         response = await self.chat_gpt_client.generate_response(user_input=user_input)
-        if response is None:
-            await self.bot.send_message(user_id, "Произошла ошибка при генерации сцены. Попробуйте позже.")
-            return
         description, actions = self.parse_response(response)
-
-        # Добавим одно случайное приключение (доп. вариант), если есть "Продолжить"
-        if "Продолжить" in actions:
-            adv = random.choice(self.adventures)
-            if adv not in actions:
-                actions.append(adv)
-
         await self.send_scenario(user_id, description, actions)
 
     def build_context(self, user_id):
@@ -149,9 +86,6 @@ class RPGGame:
                 f"Магия: {stats['magic']}"
             )
             description += char_info
-
-        # Не добавляем ASCII-арт от себя — доверяем модели
-        # Модель уже должна сгенерировать ASCII-арт внутри [DESCRIPTION], если считает нужным.
 
         if not actions:
             actions = ["Продолжить"]
