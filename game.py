@@ -187,3 +187,4 @@ class RPGGame:
         application.add_handler(MessageHandler(filters.COMMAND, self.unknown_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
 
+
