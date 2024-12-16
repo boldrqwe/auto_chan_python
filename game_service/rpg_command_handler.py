@@ -17,6 +17,7 @@ class RPGGameCommandHandler:
             format='%(asctime)s - %(levelname)s - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
+        self.action_order = ['exploration', 'combat', 'trading', 'tavern']
 
         # Устанавливаем абсолютный путь к папке с промптами
         self.prompts_path = os.path.join(os.path.dirname(__file__), "prompts")
@@ -32,6 +33,21 @@ class RPGGameCommandHandler:
             "skills": []
         }
         self.item_pool = {}  # Словарь для хранения предметов
+
+    def get_next_action(self, user_data: dict) -> str:
+        """Возвращает следующее действие в цикле на основе текущего состояния."""
+        history = user_data.get('history', [])
+        if not history:
+            return 'exploration'
+
+        # Последнее действие системы
+        last_event = history[-1]
+        for action in self.action_order:
+            if action in last_event.lower():
+                current_index = self.action_order.index(action)
+                next_index = (current_index + 1) % len(self.action_order)
+                return self.action_order[next_index]
+        return 'exploration'
 
     def log_event(self, user_id: str, action: str, response: str, error: str = None):
         """Логирует событие в консоль."""
@@ -74,15 +90,25 @@ class RPGGameCommandHandler:
             logging.error(f"Default prompt file {default_filename} not found.")
             return "Добро пожаловать в игру! Ваше приключение начинается здесь."
 
-    def fetch_chat_response(self, player_message: str, prompt: str, user_data: dict) -> str:
+    def fetch_chat_response(self, player_message: str, prompt: str, user_data: dict, user_id: str) -> str:
         """Отправляет запрос в ChatGPT и возвращает строковый ответ с учетом контекста."""
         # Формируем полный промпт, включая историю
         history = user_data.get('history', [])
-        history_text = "\n".join(history)
+        limited_history = history[-10:]  # Ограничиваем историю последними 10 действиями
+        history_text = "\n".join(limited_history)
         full_prompt = f"{prompt}\n\nИстория игры:\n{history_text}\n\nДействие игрока: {player_message}"
 
         payload = {"player_message": player_message, "prompt": full_prompt}
         try:
+            response = requests.post(self.BASE_CHATGPT_URL, json=payload, timeout=10)
+            response.raise_for_status()
+            raw_response = response.text  # Используйте .text, если ответ не в формате JSON
+
+            # Логирование полного ответа для отладки
+            logging.info(f"Raw ChatGPT Response: {raw_response}")
+            self.log_event(user_id=user_id, action=player_message, response=raw_response)
+
+            # Проверка наличия необходимых тегов
             response = requests.post(self.BASE_CHATGPT_URL, json=payload, timeout=10)
             response.raise_for_status()
             raw_response = response.json()
@@ -98,7 +124,7 @@ class RPGGameCommandHandler:
 
         except (requests.RequestException, ValueError) as e:
             logging.error(f"Error during request: {e}")
-            self.log_event(user_id="unknown", action=player_message, response="", error=str(e))
+            self.log_event(user_id=user_id, action=player_message, response="", error=str(e))
             return ""
 
     def parse_response(self, chat_response: str, user_data: dict) -> (str, InlineKeyboardMarkup, str):
@@ -114,14 +140,6 @@ class RPGGameCommandHandler:
         description_match = re.search(description_pattern, chat_response, re.DOTALL | re.IGNORECASE)
         actions_match = re.search(actions_pattern, chat_response, re.DOTALL | re.IGNORECASE)
         event_picture_match = re.search(event_picture_pattern, chat_response, re.DOTALL | re.IGNORECASE)
-
-        if not description_match or not actions_match or not event_picture_match:
-            logging.error("Некорректный формат ответа от ChatGPT.")
-            return (
-                "Произошла ошибка при обработке ответа. Попробуйте снова.",
-                InlineKeyboardMarkup([[InlineKeyboardButton("Продолжить", callback_data="continue")]]),
-                ""
-            )
 
         description = description_match.group(1).strip()
         actions = [action.strip() for action in actions_match.group(1).split(',')]

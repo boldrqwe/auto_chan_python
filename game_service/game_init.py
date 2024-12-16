@@ -17,11 +17,13 @@ class RPGGameBot:
         # Инициализируем состояние игры
         context.user_data['history'] = ["Игра началась."]
         context.user_data['action_mapping'] = {}
+        context.user_data['current_action'] = 'default'  # Устанавливаем первое действие
 
         characteristics = self.command_handler.get_characteristics()
         # Загрузка промпта для начального состояния
-        prompt = self.command_handler.load_prompt("default")
-        chat_response = self.command_handler.fetch_chat_response("start", prompt, context.user_data)
+        prompt = self.command_handler.load_prompt("exploration")
+        user_id = str(update.effective_user.id)  # Получаем ID пользователя
+        chat_response = self.command_handler.fetch_chat_response("start", prompt, context.user_data, user_id)
 
         if not chat_response:
             await update.message.reply_text(
@@ -78,16 +80,19 @@ class RPGGameBot:
             return
 
         if action_text == "Продолжить":
-            # Логика для продолжения игры
-            prompt = self.command_handler.load_prompt("default")
-            chat_response = self.command_handler.fetch_chat_response("Продолжить", prompt, context.user_data)
+            # Определяем следующее действие
+            next_action = self.command_handler.get_next_action(context.user_data)
+            context.user_data['current_action'] = next_action
+            prompt = self.command_handler.load_prompt(next_action)
+            chat_response = self.command_handler.fetch_chat_response("Продолжить", prompt, context.user_data, user_id)
 
             if not chat_response:
                 await query.edit_message_text(
                     "Произошла ошибка при получении ответа от игрового мастера.",
                 )
                 # Логирование ошибки
-                self.command_handler.log_event(user_id=user_id, action="Продолжить", response="", error="Empty chat response")
+                self.command_handler.log_event(user_id=user_id, action="Продолжить", response="",
+                                               error="Empty chat response")
                 return
 
             description, buttons, event_picture = self.command_handler.parse_response(chat_response, context.user_data)
@@ -100,17 +105,18 @@ class RPGGameBot:
             return
 
         # Для остальных действий отправляем действие как пользовательский ввод в ChatGPT
-        prompt_key = "default"  # Можно использовать другой подходящий промпт
+        prompt_key = context.user_data.get('current_action', 'default')
         prompt = self.command_handler.load_prompt(prompt_key)
 
-        chat_response = self.command_handler.fetch_chat_response(action_text, prompt, context.user_data)
+        chat_response = self.command_handler.fetch_chat_response(action_text, prompt, context.user_data, user_id)
 
         if not chat_response:
             await query.edit_message_text(
                 "Произошла ошибка при получении ответа от игрового мастера.",
             )
             # Логирование ошибки
-            self.command_handler.log_event(user_id=user_id, action=action_text, response="", error="Empty chat response")
+            self.command_handler.log_event(user_id=user_id, action=action_text, response="",
+                                           error="Empty chat response")
             return
 
         description, buttons, event_picture = self.command_handler.parse_response(chat_response, context.user_data)
@@ -122,3 +128,8 @@ class RPGGameBot:
         )
         # Логирование события
         self.command_handler.log_event(user_id=user_id, action=action_text, response=description)
+
+        # Обновляем следующее действие
+        next_action = self.command_handler.get_next_action(context.user_data)
+        context.user_data['current_action'] = next_action
+
