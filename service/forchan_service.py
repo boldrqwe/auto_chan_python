@@ -70,10 +70,21 @@ class ForchanService:
                         # Разделяем медиа на группы по max_group_size
                         for i in range(0, len(new_media), max_group_size):
                             media_group = new_media[i:i + max_group_size]
+
+                            # Преобразуем ссылки в объекты для Telegram API
+                            media_group_telegram = [
+                                {"type": "photo", "media": url} for url in media_group
+                            ]
+
+                            # Добавляем заголовок только к первому элементу
+                            if thread_data["caption"] and len(media_group_telegram) > 0:
+                                media_group_telegram[0]["caption"] = thread_data["caption"]
+                                media_group_telegram[0]["parse_mode"] = "HTML"
+
                             media_group_with_caption = {
-                                "caption": thread_data["caption"],
-                                "media": media_group
+                                "media": media_group_telegram
                             }
+
                             await media_queue.put(media_group_with_caption)
                             total_groups += 1
 
@@ -88,6 +99,7 @@ class ForchanService:
             except Exception as e:
                 self.logger.exception(f"Ошибка при сборе медиа: {e}")
             await asyncio.sleep(delay)
+
 
 # Пример использования:
 if __name__ == "__main__":
