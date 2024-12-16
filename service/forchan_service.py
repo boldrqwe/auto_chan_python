@@ -1,37 +1,106 @@
-import basc_py4chan
+import logging
+import asyncio
+import requests
+import time
 
+class ForchanService:
+    BASE_URL = "https://a.4cdn.org"
 
-def collect_image_links_from_b_board():
-    # Подключение к доске /b/
-    board = basc_py4chan.Board('b')
-    threads = board.get_all_threads()
-    print(f"Найдено {len(threads)} тредов на /b/ на 4chan")
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
 
-    image_links = []
+    def fetch_threads(self, board_name="b"):
+        """Fetch a list of threads from the specified board."""
+        url = f"{self.BASE_URL}/{board_name}/threads.json"
+        try:
+            self.logger.info(f"Получение списка тредов с {url}")
+            response = requests.get(url)
+            response.raise_for_status()
+            threads_data = response.json()
+            threads = [t['no'] for page in threads_data for t in page['threads']]
+            self.logger.info(f"Получено тредов: {len(threads)} с доски /{board_name}/")
+            return threads
+        except Exception as e:
+            self.logger.exception(f"Ошибка при получении списка тредов с /{board_name}/: {e}")
+            return []
 
-    # Обход всех тредов
-    for thread in threads:
-        thread.update()  # Обновляем данные треда
-        print(f"Обрабатывается тред: {thread.topic.subject or thread.topic.text[:30]}...")
+    def fetch_thread_data(self, thread_id, board_name="b"):
+        """Fetch data from a specific thread, including media links."""
+        url = f"{self.BASE_URL}/{board_name}/thread/{thread_id}.json"
+        try:
+            self.logger.info(f"Получение данных треда {thread_id} с {url}")
+            response = requests.get(url)
+            response.raise_for_status()
+            thread_data = response.json()
 
-        # Обход всех сообщений в треде
-        for post in thread.all_posts:
-            if post.has_file:  # Если есть файл (картинка/видео)
-                file_url = post.file.file_url
-                image_links.append(file_url)
-                print(f"Найдена ссылка на картинку: {file_url}")
+            op_post = thread_data['posts'][0]
+            op_comment = op_post.get('com', "Без текста")
 
-    return image_links
+            media_urls = []
+            for post in thread_data['posts']:
+                if 'tim' in post and 'ext' in post:
+                    media_url = f"https://i.4cdn.org/{board_name}/{post['tim']}{post['ext']}"
+                    media_urls.append(media_url)
 
+            self.logger.info(f"Тред {thread_id} получен: ОП-комментарий длиной {len(op_comment)} символов, медиафайлов: {len(media_urls)}")
 
+            return {
+                "caption": op_comment,
+                "media": media_urls
+            }
+
+        except Exception as e:
+            self.logger.exception(f"Ошибка при обработке треда {thread_id} с /{board_name}/: {e}")
+            return None
+
+    async def collect_media_periodically(self, posted_media, media_queue, board_name="b", max_group_size=6, delay=10):
+        """Collect media links periodically and add them to the media queue as groups with filtering."""
+        while True:
+            try:
+                self.logger.info(f"Начало сбора медиа с доски /{board_name}/...")
+                threads = self.fetch_threads(board_name)
+
+                total_groups = 0
+                for thread_id in threads:
+                    thread_data = self.fetch_thread_data(thread_id, board_name)
+
+                    if thread_data and thread_data.get("media"):
+                        new_media = [url for url in thread_data["media"] if url not in posted_media]
+
+                        # Разделяем медиа на группы по max_group_size
+                        for i in range(0, len(new_media), max_group_size):
+                            media_group = new_media[i:i + max_group_size]
+                            media_group_with_caption = {
+                                "caption": thread_data["caption"],
+                                "media": media_group
+                            }
+                            await media_queue.put(media_group_with_caption)
+                            total_groups += 1
+
+                        # Помечаем добавленные ссылки как отправленные
+                        posted_media.update(new_media)
+
+                    # Перерыв между обработкой тредов
+                    await asyncio.sleep(25)
+
+                self.logger.info(f"Сбор завершён: добавлено {total_groups} групп в очередь.")
+
+            except Exception as e:
+                self.logger.exception(f"Ошибка при сборе медиа: {e}")
+            await asyncio.sleep(delay)
+
+# Пример использования:
 if __name__ == "__main__":
-    # Сбор ссылок
-    links = collect_image_links_from_b_board()
+    logging.basicConfig(level=logging.INFO)
+    forchan_service = ForchanService()
 
-    # Сохранение в файл#
-    with open("b_board_image_links.txt", "w") as f:
-        for link in links:#
-            f.write(link + "\n")
+    posted_media = set()
+    media_queue = asyncio.Queue()
 
-    print(f"Ссылки сохранены в b_board_image_links.txt. Всего {len(links)} изображений.")
-#
+    # Параметры
+    board_name = "b"
+    max_group_size = 6
+    delay = 30
+
+    # Запуск сбора медиа в асинхронном режиме
+    asyncio.run(forchan_service.collect_media_periodically(posted_media, media_queue, board_name, max_group_size, delay))

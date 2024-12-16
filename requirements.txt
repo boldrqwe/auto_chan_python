@@ -1,4 +1,4 @@
-aiohttp
+aiohttp==3.9.0
 basc_py4chan
 nest_asyncio
 nudenet

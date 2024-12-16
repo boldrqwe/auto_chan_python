@@ -42,9 +42,9 @@ class DvachService:
         for attempt in range(max_retries):
             self.logger.debug(f"Попытка {attempt+1} из {max_retries} получить данные треда {thread_num}.")
             try:
-                r = requests.get(url)
-                r.raise_for_status()
-                data = r.json()
+                response = requests.get(url)
+                response.raise_for_status()
+                data = response.json()
                 self.logger.debug(f"Ответ для треда {thread_num} получен. Ключи: {list(data.keys()) if isinstance(data, dict) else 'не dict'}")
 
                 threads_data = data.get("threads", [])
