@@ -66,6 +66,10 @@ class HarkachMarkupConverter:
         result = re.sub(r'target="_blank"', '', result)
         result = re.sub(r'rel="[^"]*"', '', result)
 
+        # Удаляем некорректные span (любые кроме tg-spoiler)
+        result = re.sub(r'<span(?! class="tg-spoiler").*?>', '', result)  # Удаляем <span> без tg-spoiler
+        result = re.sub(r'</span>', '', result)  # Закрывающие </span>
+
         # Удаляем class="spoiler" если остался где-то
         result = re.sub(r'class="[^"]*"', '', result)
 

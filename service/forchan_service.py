@@ -1,7 +1,11 @@
-import logging
+from utils.harkach_markup_converter import HarkachMarkupConverter
 import asyncio
+import logging
 import requests
-import time
+from utils.media_utils import create_input_media
+
+converter = HarkachMarkupConverter()
+
 
 class ForchanService:
     BASE_URL = "https://a.4cdn.org"
@@ -54,51 +58,73 @@ class ForchanService:
             return None
 
     async def collect_media_periodically(self, posted_media, media_queue, board_name="b", max_group_size=6, delay=10):
-        """Collect media links periodically and add them to the media queue as groups with filtering."""
+        """
+        Периодически собирает медиа-ссылки и добавляет их в очередь группами по max_group_size.
+        Только первый элемент группы содержит caption с красивой ссылкой на тред.
+        """
         while True:
             try:
                 self.logger.info(f"Начало сбора медиа с доски /{board_name}/...")
                 threads = self.fetch_threads(board_name)
 
-                total_groups = 0
                 for thread_id in threads:
                     thread_data = self.fetch_thread_data(thread_id, board_name)
 
-                    if thread_data and thread_data.get("media"):
-                        new_media = [url for url in thread_data["media"] if url not in posted_media]
+                    if not thread_data or not thread_data.get("media"):
+                        self.logger.info(f"Нет медиа для треда {thread_id}")
+                        continue
 
-                        # Разделяем медиа на группы по max_group_size
-                        for i in range(0, len(new_media), max_group_size):
-                            media_group = new_media[i:i + max_group_size]
+                    # Получаем все медиа из треда и фильтруем уже отправленные
+                    all_media = [url for url in thread_data["media"] if url not in posted_media and not url.endswith(".webm")]
 
-                            # Преобразуем ссылки в объекты для Telegram API
-                            media_group_telegram = [
-                                {"type": "photo", "media": url} for url in media_group
-                            ]
 
-                            # Добавляем заголовок только к первому элементу
-                            if thread_data["caption"] and len(media_group_telegram) > 0:
-                                media_group_telegram[0]["caption"] = thread_data["caption"]
-                                media_group_telegram[0]["parse_mode"] = "HTML"
+                    if not all_media:
+                        self.logger.info(f"Новых медиа в треде {thread_id} нет.")
+                        continue
 
-                            media_group_with_caption = {
-                                "media": media_group_telegram
-                            }
+                    self.logger.info(f"Тред {thread_id}: найдено новых медиа: {len(all_media)}")
 
-                            await media_queue.put(media_group_with_caption)
-                            total_groups += 1
+                    # Формируем ссылку на тред
+                    thread_url = f"https://boards.4chan.org/{board_name}/thread/{thread_id}"
+                    formatted_link = f'\n===========\n<a href="{thread_url}">Ссылка на тред</a>'
 
-                        # Помечаем добавленные ссылки как отправленные
-                        posted_media.update(new_media)
+                    # Разбиваем медиа на группы по max_group_size
+                    for i in range(0, len(all_media), max_group_size):
+                        # Ожидаем, если очередь переполнена
+                        while media_queue.qsize() >= 21:
+                            self.logger.info("Очередь переполнена. Ожидание освобождения...")
+                            await asyncio.sleep(10)  # Проверяем каждые 10 секунд
 
-                    # Перерыв между обработкой тредов
+                        media_group_urls = all_media[i:i + max_group_size]
+
+                        # Конвертируем в InputMedia и добавляем caption только первому элементу
+                        media_group = []
+                        for idx, url in enumerate(media_group_urls):
+                            caption = None
+                            if idx == 0:  # Caption только для первого элемента группы
+                                thread_caption = converter.convert_to_tg_html(thread_data["caption"])
+                                caption = f"{thread_caption}{formatted_link}"
+
+                            media_group.append(create_input_media(url, caption))
+
+                        # Добавляем группу в очередь
+                        await media_queue.put(media_group)
+
+
+                    # Помечаем медиа как отправленные
+                    posted_media.update(all_media)
+
+                    self.logger.info(f"Тред {thread_id} полностью обработан.")
+
+                    # Задержка перед обработкой следующего треда
                     await asyncio.sleep(25)
 
-                self.logger.info(f"Сбор завершён: добавлено {total_groups} групп в очередь.")
+                self.logger.info("Обработка всех тредов завершена. Ожидание перед новым циклом.")
+                await asyncio.sleep(delay)
 
             except Exception as e:
                 self.logger.exception(f"Ошибка при сборе медиа: {e}")
-            await asyncio.sleep(delay)
+                await asyncio.sleep(delay)
 
 
 # Пример использования:

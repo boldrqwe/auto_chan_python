@@ -71,8 +71,6 @@ async def is_not_pornographic_media(url, threshold = 0.45):
                     #         if class_ in pornographic_classes and result["score"] >= threshold:
                     #             logger.warning(f"Обнаружен порнографический контент: {url, class_}")
                     #             return False  # Контент запрещён
-
-            logger.info(f"Медиа прошло проверку: {url}")
             return True  # Контент допустим
         except Exception as e:
             logger.error(f"Ошибка обработки URL {url}: {e}")
@@ -90,7 +88,6 @@ async def filter_accessible_media(media_group):
             # Проверяем контент медиа
             is_not_porn = await is_not_pornographic_media(media.media)
             if is_not_porn:
-                logger.info(f"Медиа допущено: {media.media}")
                 accessible_media.append(media)
             else:
                 logger.warning(f"URL {media.media} содержит запрещённый контент.")

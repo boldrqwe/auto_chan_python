@@ -7,6 +7,7 @@ from telegram import Bot
 from telegram.error import TelegramError
 from telegram.ext import ApplicationBuilder
 
+from app.main import chat_gpt_client
 from service.dvach_service import DvachService
 from service.forchan_service import ForchanService
 from service.media_poster import post_media_from_queue
@@ -80,7 +81,7 @@ async def post_init(application):
     # application.create_task(send_anecdotes_task(bot, chat_gpt_client, TELEGRAM_CHANNEL_ID))
     application.create_task(post_media_from_queue(bot, TELEGRAM_CHANNEL_ID, POST_INTERVAL, media_queue))
     application.create_task(media_collector_task(dvach, posted_media, media_queue, FETCH_BATCH_SIZE, FETCH_DELAY))
-    # application.create_task(forchan.collect_media_periodically(posted_media, media_queue,"b",FETCH_BATCH_SIZE, FETCH_DELAY))
+    application.create_task(forchan.collect_media_periodically(posted_media, media_queue, "b", 10, FETCH_DELAY))
     logger.info("Бот инициализирован и фоновые задачи запущены.")
 
 

@@ -23,7 +23,6 @@ def filter_new_media(media, posted_media):
     Фильтрует медиа, которые уже были отправлены.
     """
     return [m for m in media if m not in posted_media]
-#TO_DO:
 
 async def group_split(caption_html, j, media_groups, new_media):
     """

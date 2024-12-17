@@ -4,7 +4,7 @@ import logging
 from utils.harkach_markup_converter import HarkachMarkupConverter
 from utils.thread_utils import filter_new_media, fetch_thread_data_safe, group_split
 
-__STEP = 6
+__STEP = 10
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,11 @@ async def process_thread(thread, dvach, media_queue, posted_media, media_found, 
 
     # Преобразуем разметку для caption
     raw_caption = t_data["caption"][:1024]
+    thread_link = f"https://2ch.hk/b/res/{thread_num}.html"  # Формирование ссылки на тред
     caption_html = converter.convert_to_tg_html(raw_caption)
+
+    # Добавляем ссылку на тред в конец caption
+    caption_html += f"\n===========\n<a href=\"{thread_link}\">Ссылка на тред</a>"
 
     # Разбиваем медиа на группы и добавляем их в очередь
     media_groups = []
@@ -61,8 +65,9 @@ async def process_thread(thread, dvach, media_queue, posted_media, media_found, 
 
     for g in media_groups:
         await media_queue.put(g)
-        media_found += len(g)#
+        media_found += len(g)
 
     threads_processed += 1
     logger.info("Тред %s обработан. Новых медиа: %d, групп: %d.", thread_num, len(new_media), len(media_groups))
+
 #
