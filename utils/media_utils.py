@@ -26,7 +26,7 @@ def create_input_media(url: str, caption: str = None):
 detector = NudeDetector()
 semaphore = Semaphore(5)  # Ограничение одновременных задач
 
-async def is_not_pornographic_media(url, threshold=0.34):
+async def is_not_pornographic_media(url, threshold=0.30):
     """
     Асинхронно проверяет, является ли медиа по URL порнографическим (поддержка изображений и видео).
     """
