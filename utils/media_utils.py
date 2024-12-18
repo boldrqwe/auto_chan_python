@@ -55,7 +55,7 @@ async def is_not_pornographic_media(url, threshold = 0.45):
                                 return False
 
                         # Анализ с помощью NudeNet
-                        logger.debug(f"Проверка медиа через NudeNet: {url}")
+
                         results = detector.detect(temp_file.name)
 
                         pornographic_classes = {
