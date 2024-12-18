@@ -40,37 +40,37 @@ async def is_not_pornographic_media(url, threshold = 0.45):
                         return False
 
                     # Сохранение медиа во временный файл
-                    # suffix = ".mp4" if url.endswith((".webm", ".mp4")) else ".jpeg"
-                    # with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
-                    #     temp_file.write(await response.read())
-                    #     temp_file.flush()
-                    #
-                    #     # Если это изображение, проверяем через Pillow
-                    #     if suffix == ".jpeg":
-                    #         try:
-                    #             with Image.open(temp_file.name) as img:
-                    #                 img.verify()  # Проверка корректности изображения
-                    #         except (UnidentifiedImageError, IOError):
-                    #             logger.error(f"Файл повреждён или не является изображением: {url}")
-                    #             return False
-                    #
-                    #     # Анализ с помощью NudeNet
-                    #     logger.debug(f"Проверка медиа через NudeNet: {url}")
-                    #     results = detector.detect(temp_file.name)
-                    #
-                    #     pornographic_classes = {
-                    #         "FEMALE_BREAST_EXPOSED",
-                    #         "FEMALE_GENITALIA_EXPOSED",
-                    #         "BUTTOCKS_EXPOSED",
-                    #         "ANUS_EXPOSED",
-                    #         "MALE_GENITALIA_EXPOSED",
-                    #     }
-                    #
-                    #     for result in results:
-                    #         class_ = result["class"]
-                    #         if class_ in pornographic_classes and result["score"] >= threshold:
-                    #             logger.warning(f"Обнаружен порнографический контент: {url, class_}")
-                    #             return False  # Контент запрещён
+                    suffix = ".mp4" if url.endswith((".webm", ".mp4")) else ".jpeg"
+                    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
+                        temp_file.write(await response.read())
+                        temp_file.flush()
+
+                        # Если это изображение, проверяем через Pillow
+                        if suffix == ".jpeg":
+                            try:
+                                with Image.open(temp_file.name) as img:
+                                    img.verify()  # Проверка корректности изображения
+                            except (UnidentifiedImageError, IOError):
+                                logger.error(f"Файл повреждён или не является изображением: {url}")
+                                return False
+
+                        # Анализ с помощью NudeNet
+                        logger.debug(f"Проверка медиа через NudeNet: {url}")
+                        results = detector.detect(temp_file.name)
+
+                        pornographic_classes = {
+                            "FEMALE_BREAST_EXPOSED",
+                            "FEMALE_GENITALIA_EXPOSED",
+                            "BUTTOCKS_EXPOSED",
+                            "ANUS_EXPOSED",
+                            "MALE_GENITALIA_EXPOSED",
+                        }
+
+                        for result in results:
+                            class_ = result["class"]
+                            if class_ in pornographic_classes and result["score"] >= threshold:
+                                logger.warning(f"Обнаружен порнографический контент: {url, class_}")
+                                return False  # Контент запрещён
             return True  # Контент допустим
         except Exception as e:
             logger.error(f"Ошибка обработки URL {url}: {e}")
