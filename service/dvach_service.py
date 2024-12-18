@@ -35,31 +35,31 @@ class DvachService:
                 self.logger.exception(f"Неожиданная ошибка при получении тредов: {e}")
                 raise
 
-    def fetch_thread_data(self, thread_num, board="b", max_retries=3, delay=10):
-        url = f"{self.BASE_URL}/{board}/res/{thread_num}.json"
-        self.logger.info(f"Попытка получить данные треда {thread_num} с {url}")
+    def fetch_thread_data(self, num, board="b", max_retries=3, delay=10):
+        url = f"{self.BASE_URL}/{board}/res/{num}.json"
+        self.logger.info(f"Попытка получить данные треда {num} с {url}")
 
         for attempt in range(max_retries):
-            self.logger.debug(f"Попытка {attempt+1} из {max_retries} получить данные треда {thread_num}.")
+            self.logger.debug(f"Попытка {attempt+1} из {max_retries} получить данные треда {num}.")
             try:
                 response = requests.get(url)
                 response.raise_for_status()
                 data = response.json()
-                self.logger.debug(f"Ответ для треда {thread_num} получен. Ключи: {list(data.keys()) if isinstance(data, dict) else 'не dict'}")
+                self.logger.debug(f"Ответ для треда {num} получен. Ключи: {list(data.keys()) if isinstance(data, dict) else 'не dict'}")
 
                 threads_data = data.get("threads", [])
                 if not threads_data:
-                    self.logger.warning(f"threads_data отсутствуют или пусты для треда {thread_num}, данные: {data}")
+                    self.logger.warning(f"threads_data отсутствуют или пусты для треда {num}, данные: {data}")
                     return None
 
                 if not isinstance(threads_data, list) or len(threads_data) == 0:
-                    self.logger.warning(f"threads_data не список или пуст для треда {thread_num}. data: {data}")
+                    self.logger.warning(f"threads_data не список или пуст для треда {num}. data: {data}")
                     return None
 
                 thread_info = threads_data[0]
                 posts = thread_info.get("posts", [])
                 if not posts:
-                    self.logger.warning(f"Посты отсутствуют в треде {thread_num}, thread_info ключи: {list(thread_info.keys())}, data: {data}")
+                    self.logger.warning(f"Посты отсутствуют в треде {num}, thread_info ключи: {list(thread_info.keys())}, data: {data}")
                     return None
 
                 op_post = posts[0]
@@ -80,14 +80,14 @@ class DvachService:
                             media_urls.append(full_url)
                             files_found += 1
 
-                self.logger.info(f"Тред {thread_num} получен: ОП-комментарий длиной {len(op_comment)} символов, медиафайлов: {files_found}")
+                self.logger.info(f"Тред {num} получен: ОП-комментарий длиной {len(op_comment)} символов, медиафайлов: {files_found}")
 
                 return {
                     "caption": op_comment,
                     "media": media_urls
                 }
             except requests.exceptions.HTTPError as e:
-                self.logger.error(f"HTTP Error при получении треда {thread_num}: {e}")
+                self.logger.error(f"HTTP Error при получении треда {num}: {e}")
                 if attempt < max_retries - 1:
                     self.logger.info(f"Повторная попытка через {delay} секунд.")
                     time.sleep(delay)
@@ -95,6 +95,6 @@ class DvachService:
                     self.logger.exception("Исчерпаны попытки получения данных треда {thread_num}.")
                     raise
             except Exception as e:
-                self.logger.exception(f"Неожиданная ошибка при обработке данных треда {thread_num}: {e}")
+                self.logger.exception(f"Неожиданная ошибка при обработке данных треда {num}: {e}")
                 raise
 #

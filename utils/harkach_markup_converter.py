@@ -34,7 +34,7 @@ class HarkachMarkupConverter:
         return result
 
     def replace_spoiler_span(self, input_str: str) -> str:
-        # <span class="spoiler">...</span> -> <spoiler>...</spoiler>
+        # <span class="spoiler">...</span> -> <span class="tg-spoiler">...</span>
         regex = re.compile(r'<span class="spoiler">(.*?)</span>', flags=re.DOTALL)
         result = input_str
         while True:
@@ -42,7 +42,7 @@ class HarkachMarkupConverter:
             if not match:
                 break
             content = match.group(1)
-            replacement = f"<spoiler>{content}</spoiler>"
+            replacement = f'<span class="tg-spoiler">{content}</span>'
             result = result[:match.start()] + replacement + result[match.end():]
         return result
 

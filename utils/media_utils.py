@@ -26,7 +26,7 @@ def create_input_media(url: str, caption: str = None):
 detector = NudeDetector()
 semaphore = Semaphore(5)  # Ограничение одновременных задач
 
-async def is_not_pornographic_media(url, threshold=0.45):
+async def is_not_pornographic_media(url, threshold=0.34):
     """
     Асинхронно проверяет, является ли медиа по URL порнографическим (поддержка изображений и видео).
     """
@@ -57,18 +57,12 @@ async def is_not_pornographic_media(url, threshold=0.45):
                         # Анализ с помощью NudeNet
                         results = detector.detect(temp_file.name)
 
-                        pornographic_classes = {
-                            "FEMALE_BREAST_EXPOSED",
-                            "FEMALE_GENITALIA_EXPOSED",
-                            "BUTTOCKS_EXPOSED",
-                            "ANUS_EXPOSED",
-                            "MALE_GENITALIA_EXPOSED",
-                        }
 
                         for result in results:
                             class_ = result["class"]
-                            if class_ in pornographic_classes and result["score"] >= threshold:
-                                logger.warning(f"Обнаружен порнографический контент: {url, class_}")
+                            score_ = result["score"]
+                            if score_ >= threshold:
+                                logger.warning(f"Обнаружен порнографический контент: {url, class_, score_}")
                                 return False  # Контент запрещён
             return True  # Контент допустим
         except Exception as e:
