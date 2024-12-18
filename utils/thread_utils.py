@@ -2,7 +2,7 @@ import logging
 
 from utils.media_utils import create_input_media
 
-__STEP = 6
+__STEP = 10
 
 logger = logging.getLogger(__name__)
 
