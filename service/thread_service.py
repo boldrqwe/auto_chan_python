@@ -15,9 +15,26 @@ async def batch_threads(batch_size, delay, dvach, media_found, media_queue, post
     """
     Обрабатывает пакеты тредов и вызывает обработку каждого треда.
     """
+    filter_keywords = {"fap", "dark", "afp"}  # Набор слов для фильтрации caption
+
     for i in range(0, len(threads), batch_size):
         batch = threads[i:i + batch_size]
+
         for thread in batch:
+            # Получаем данные треда для проверки
+            thread_data = await dvach.fetch_thread_data(thread)
+
+            if not thread_data:
+                logger.debug(f"Тред {thread} не содержит данных или не удалось получить информацию.")
+                continue
+
+            # Проверяем caption на наличие запрещённых слов
+            caption = thread_data.get("caption", "").lower()
+            if any(keyword in caption for keyword in filter_keywords):
+                logger.info(f"Тред {thread} отфильтрован из-за содержания: '{caption}'.")
+                continue
+
+            # Обрабатываем тред, если он прошёл фильтрацию
             await process_thread(thread, dvach, media_queue, posted_media, media_found, threads_processed)
 
         # Пауза перед следующим пакетом тредов
