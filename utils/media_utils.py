@@ -78,8 +78,10 @@ async def filter_accessible_media(media_group):
     for media in media_group:
         try:
             # Проверяем контент медиа
-            is_not_porn = await is_not_pornographic_media(media.media)
-            if is_not_porn:
+            # is_not_porn = true
+                # await is_not_pornographic_media(media.media)
+
+            # if is_not_porn:
                 accessible_media.append(media)
         except Exception as e:
             logger.error(f"Ошибка обработки медиа {media.media}: {e}")

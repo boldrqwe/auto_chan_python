@@ -1,7 +1,7 @@
 from nudenet import NudeDetector
 
 
-def contains_pornographic_content(image_path, threshold=0.45):
+def contains_pornographic_content(image_path="C:\\Users\\Alevtina\\PycharmProjects\\auto_chan_python\\utils\\test.png", threshold=0.45):
     """
     Проверяет, содержит ли изображение порнографический контент.
 

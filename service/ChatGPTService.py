@@ -3,6 +3,7 @@ import os
 import aiohttp
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -23,11 +24,10 @@ class ChatGPTClient:
         if not self.api_key:
             raise ValueError("Переменная окружения OPENAI_API_KEY не задана!")
 
-    async def generate_response(self, player_message: str, prompt: str):
+    async def generate_response(self, messages: List[dict]):
         """
-        Генерация ответа на основе промпта и сообщения игрока.
-        :param player_message: Сообщение от игрока.
-        :param prompt: Промпт, задающий контекст.
+        Генерация ответа на основе списка сообщений.
+        :param messages: Список сообщений для ChatGPT.
         :return: Ответ от OpenAI.
         """
         url = "https://api.openai.com/v1/chat/completions"
@@ -36,20 +36,13 @@ class ChatGPTClient:
             "Content-Type": "application/json"
         }
 
-        # Формируем список сообщений для ChatGPT
-        messages = [
-            {"role": "system", "content": prompt},  # Промпт от системы
-            {"role": "user", "content": player_message}  # Сообщение от игрока
-        ]
-
         data = {
             "model": "gpt-3.5-turbo",
             "messages": messages,
-            "max_tokens": 1000,
+            "max_tokens": 2000,
             "temperature": 0.7
         }
 
-        # Запрос к API OpenAI
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=data) as resp:
