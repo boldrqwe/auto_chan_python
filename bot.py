@@ -7,7 +7,6 @@ from telegram import Bot
 from telegram.error import TelegramError
 from telegram.ext import ApplicationBuilder
 
-from app.main import chat_gpt_client
 from service.dvach_service import DvachService
 from service.forchan_service import ForchanService
 from service.media_poster import post_media_from_queue

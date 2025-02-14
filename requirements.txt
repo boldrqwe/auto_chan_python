@@ -2,7 +2,6 @@ aiohttp==3.9.0
 basc_py4chan
 nest_asyncio
 nudenet
-openai==0.28
 Pillow
 pyperclip
 python-telegram-bot
