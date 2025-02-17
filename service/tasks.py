@@ -41,7 +41,7 @@ async def job_collect_media(dvach, posted_media, media_queue, batch_size=5, dela
                 threads_processed, media_found, media_queue.qsize())
 
     # Очистка posted_media для уменьшения потребления памяти
-    if len(posted_media) > 10000:#
+    if len(posted_media) > 20000:#
         logger.info("Очистка коллекции отправленных медиа.")
         posted_media.clear()
 
