@@ -16,7 +16,7 @@ import time
 
 
 class DvachService:
-    BASE_URL = "https://2ch.hk"
+    BASE_URL = "https://2ch.su"
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
