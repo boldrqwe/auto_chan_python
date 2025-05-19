@@ -64,7 +64,7 @@ async def process_thread(thread, dvach, media_queue, posted_media, media_found, 
 
     # Преобразуем разметку для caption
     raw_caption = t_data["caption"][:1024]
-    thread_link = f"https://2ch.hk/b/res/{thread_num}.html"  # Формирование ссылки на тред
+    thread_link = f"https://2ch.su/b/res/{thread_num}.html"  # Формирование ссылки на тред
     caption_html = converter.convert_to_tg_html(raw_caption)
 
     # Добавляем ссылку на тред в конец caption
