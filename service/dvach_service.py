@@ -82,7 +82,7 @@ class DvachService:
                 # Генерация рецензии
                 logger.info(f"Генерация рецензии для треда {thread_num_}...")
                 response = await chat_gpt_client.generate_response(messages)
-                thread_url = f"https://2ch.hk/b/res/{thread_num_}.html"
+                thread_url = f"{BASE_URL}/b/res/{thread_num_}.html"
                 final_response = f"Ссылка на тред: {thread_url}\n==================================\n{response}"
                 # Отправка рецензии в Telegram
                 logger.info(f"Отправляем рецензию на тред {thread_num_} в канал...")
