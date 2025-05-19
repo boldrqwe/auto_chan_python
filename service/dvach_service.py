@@ -97,7 +97,7 @@ class DvachService:
 
     async def get_new_threads(self, board: str) -> list:
         """Получает список тредов для указанной доски."""
-        url = f"https://2ch.hk/{board}/catalog.json"
+        url = f"{BASE_URL}/{board}/catalog.json"
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status != 200:
@@ -117,7 +117,7 @@ class DvachService:
 
     async def get_thread_content(self, thread_id: str) -> dict:
         """Получает содержимое треда по ID."""
-        url = f"https://2ch.hk/b/res/{thread_id}.json"
+        url = f"{BASE_URL}/b/res/{thread_id}.json"
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status != 200:
