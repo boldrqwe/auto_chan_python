@@ -132,7 +132,7 @@ class DvachService:
         for attempt in range(max_retries):
             self.logger.debug(f"Попытка {attempt + 1} из {max_retries} получить треды.")
             try:
-                response = requests.get(url)
+                response = requests.get(url, headers=self._get_default_headers())
                 response.raise_for_status()
                 data_json = response.json()
                 self.logger.debug(
@@ -159,7 +159,7 @@ class DvachService:
         for attempt in range(max_retries):
             self.logger.debug(f"Попытка {attempt + 1} из {max_retries} получить данные треда {num}.")
             try:
-                response = requests.get(url)
+                response = requests.get(url, headers=self._get_default_headers())
                 response.raise_for_status()
                 data = response.json()
                 self.logger.debug(
@@ -239,5 +239,10 @@ class DvachService:
     def calculate_saving(original_text, compressed_text):
         return 100 * (1 - len(compressed_text) / len(original_text))
 
-    # Исходный текст
+    def _get_default_headers(self):
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Referer": f"{self.BASE_URL}/b/",
+            "Accept": "application/json"
+        }
 
